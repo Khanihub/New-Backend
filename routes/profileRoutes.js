@@ -1,3 +1,5 @@
+// D:\Dating App\backend-main\routes\profileRoutes.js
+
 import express from "express";
 import {
   createProfile,
@@ -12,14 +14,42 @@ import upload from "../middleware/upload.js";
 
 const router = express.Router();
 
-// Get my profile - matches GET /api/profile/me
+// Get my profile
 router.get("/me", protect, getMyProfile);
 
-// Create profile - matches POST /api/profile  
-router.post("/", protect, upload.single("image"), createProfile);
+// Create or update profile - Use multer.single with error handling
+router.post("/", protect, (req, res, next) => {
+  const uploadSingle = upload.single("image");
+  
+  uploadSingle(req, res, (err) => {
+    if (err) {
+      // If error is about file type, still process the request without image
+      if (err.message === "Only image files (jpg, jpeg, png, gif, webp) are allowed") {
+        console.log("Image validation failed, proceeding without image");
+        return next();
+      }
+      // For other errors, return error
+      return res.status(400).json({ message: err.message });
+    }
+    next();
+  });
+}, createProfile);
 
-// Update profile - matches PUT /api/profile/me
-router.put("/me", protect, upload.single("image"), updateProfile);
+// Update profile
+router.put("/me", protect, (req, res, next) => {
+  const uploadSingle = upload.single("image");
+  
+  uploadSingle(req, res, (err) => {
+    if (err) {
+      if (err.message === "Only image files (jpg, jpeg, png, gif, webp) are allowed") {
+        console.log("Image validation failed, proceeding without image");
+        return next();
+      }
+      return res.status(400).json({ message: err.message });
+    }
+    next();
+  });
+}, updateProfile);
 
 // Delete profile
 router.delete("/delete", protect, deleteProfile);
