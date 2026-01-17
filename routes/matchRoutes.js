@@ -9,11 +9,9 @@ import {
 
 const router = express.Router()
 
-// IMPORTANT: Put /browse routes BEFORE / route
+
 router.get("/browse/filter", protect, getFilteredBrowseMatches)
 router.get("/browse", protect, getBrowseMatches)
-
-// Existing routes
 router.get("/", protect, getMyMatches)
 router.post("/interest/:userId", protect, sendInterest)
 
