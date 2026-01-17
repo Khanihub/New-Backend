@@ -1,57 +1,334 @@
-// InterestController.js - UPDATED VERSION
+// InterestController.js - COMPLETE VERSION WITH NOTIFICATIONS
 
-import Interest from "../model/Interest.js"
-import Match from "../model/Match.js"
-import Profile from "../model/Profile.js"
+import Interest from "../model/Interest.js";
+import Match from "../model/Match.js";
+import Profile from "../model/Profile.js";
 
-// SEND INTEREST (keep existing)
+// Helper function to get correct image URL
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return 'https://i.pravatar.cc/400?img=1';
+  
+  if (imagePath.startsWith('http')) return imagePath;
+  
+  const baseUrl = process.env.BACKEND_URL 
+    || (process.env.RAILWAY_PUBLIC_DOMAIN 
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : process.env.NODE_ENV === 'production'
+        ? 'https://new-backend-production-766f.up.railway.app'
+        : 'http://localhost:5000');
+  
+  const path = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+  
+  return `${baseUrl}${path}`;
+};
+
+// ========== INTEREST MANAGEMENT ==========
+
+// SEND INTEREST
 export const sendInterest = async (req, res) => {
-  const { to } = req.body
+  try {
+    console.log('=== SEND INTEREST ===');
+    console.log('From:', req.user.id);
+    console.log('To:', req.body.to);
 
-  const already = await Interest.findOne({
-    from: req.user.id,
-    to
-  })
-  if (already) {
-    return res.status(400).json({ message: "Interest already sent" })
+    const { to } = req.body;
+
+    if (!to) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Recipient ID is required" 
+      });
+    }
+
+    // Check if interest already sent
+    const already = await Interest.findOne({
+      from: req.user.id,
+      to
+    });
+
+    if (already) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Interest already sent" 
+      });
+    }
+
+    // Create interest
+    const interest = await Interest.create({
+      from: req.user.id,
+      to,
+      status: "pending"
+    });
+
+    console.log('Interest created:', interest._id);
+
+    res.status(201).json({
+      success: true,
+      message: "Interest sent successfully",
+      interest
+    });
+
+  } catch (error) {
+    console.error('Send interest error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Error sending interest",
+      error: error.message 
+    });
   }
+};
 
-  const interest = await Interest.create({
-    from: req.user.id,
-    to
-  })
-
-  res.status(201).json(interest)
-}
-
-// ACCEPT INTEREST (keep existing)
+// ACCEPT INTEREST
 export const acceptInterest = async (req, res) => {
-  const interest = await Interest.findById(req.params.id)
+  try {
+    console.log('=== ACCEPT INTEREST ===');
+    console.log('Interest ID:', req.params.id);
+    console.log('User ID:', req.user.id);
 
-  if (!interest || interest.to.toString() !== req.user.id) {
-    return res.status(404).json({ message: "Interest not found" })
+    const interest = await Interest.findById(req.params.id);
+
+    if (!interest) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Interest not found" 
+      });
+    }
+
+    if (interest.to.toString() !== req.user.id) {
+      return res.status(403).json({ 
+        success: false,
+        message: "Not authorized to accept this interest" 
+      });
+    }
+
+    if (interest.status === "accepted") {
+      return res.status(400).json({ 
+        success: false,
+        message: "Interest already accepted" 
+      });
+    }
+
+    // Update interest status
+    interest.status = "accepted";
+    await interest.save();
+
+    // Check if match already exists
+    let match = await Match.findOne({
+      users: { $all: [interest.from, interest.to] }
+    });
+
+    if (!match) {
+      // CREATE NEW MATCH
+      match = await Match.create({
+        users: [interest.from, interest.to],
+        interestSentBy: [interest.from]
+      });
+      console.log('Match created:', match._id);
+    } else {
+      console.log('Match already exists:', match._id);
+    }
+
+    res.json({
+      success: true,
+      message: "Interest accepted! You can now start messaging.",
+      match
+    });
+
+  } catch (error) {
+    console.error('Accept interest error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Error accepting interest",
+      error: error.message 
+    });
   }
+};
 
-  interest.status = "accepted"
-  await interest.save()
+// REJECT INTEREST
+export const rejectInterest = async (req, res) => {
+  try {
+    console.log('=== REJECT INTEREST ===');
+    console.log('Interest ID:', req.params.id);
 
-  // CREATE MATCH
-  const match = await Match.create({
-    users: [interest.from, interest.to]
-  })
+    const interest = await Interest.findById(req.params.id);
 
-  res.json({ match })
-}
+    if (!interest) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Interest not found" 
+      });
+    }
 
-// ========== NEW FUNCTIONS FOR SHORTLIST ==========
+    if (interest.to.toString() !== req.user.id) {
+      return res.status(403).json({ 
+        success: false,
+        message: "Not authorized to reject this interest" 
+      });
+    }
 
-// Add to shortlist (NEW)
+    // Update interest status
+    interest.status = "rejected";
+    await interest.save();
+
+    res.json({
+      success: true,
+      message: "Interest rejected",
+      interest
+    });
+
+  } catch (error) {
+    console.error('Reject interest error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Error rejecting interest",
+      error: error.message 
+    });
+  }
+};
+
+// ========== NOTIFICATIONS ==========
+
+// GET ALL NOTIFICATIONS
+export const getNotifications = async (req, res) => {
+  try {
+    console.log('=== GET NOTIFICATIONS ===');
+    console.log('User ID:', req.user.id);
+
+    // Get all interests sent TO the current user
+    const interests = await Interest.find({
+      to: req.user.id
+    })
+      .populate('from', 'name email')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    console.log('Found interests:', interests.length);
+
+    // Format notifications with profile info
+    const notifications = await Promise.all(
+      interests.map(async (interest) => {
+        const fromProfile = await Profile.findOne({ user: interest.from._id });
+
+        return {
+          _id: interest._id,
+          type: 'interest',
+          status: interest.status,
+          from: {
+            _id: interest.from._id,
+            name: fromProfile?.fullName || interest.from.name || 'Unknown',
+            email: interest.from.email,
+            image: getImageUrl(fromProfile?.image),
+            age: fromProfile?.age,
+            city: fromProfile?.city,
+            profession: fromProfile?.profession
+          },
+          message: `${fromProfile?.fullName || interest.from.name} sent you an interest`,
+          createdAt: interest.createdAt,
+          read: interest.status !== 'pending' // Mark as read if already accepted/rejected
+        };
+      })
+    );
+
+    // Count unread (pending) notifications
+    const unreadCount = notifications.filter(n => !n.read).length;
+
+    res.json({
+      success: true,
+      notifications,
+      unreadCount
+    });
+
+  } catch (error) {
+    console.error('Get notifications error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Error fetching notifications",
+      error: error.message 
+    });
+  }
+};
+
+// GET UNREAD COUNT
+export const getUnreadCount = async (req, res) => {
+  try {
+    const count = await Interest.countDocuments({
+      to: req.user.id,
+      status: 'pending'
+    });
+
+    res.json({
+      success: true,
+      unreadCount: count
+    });
+
+  } catch (error) {
+    console.error('Get unread count error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Error getting unread count",
+      error: error.message 
+    });
+  }
+};
+
+// GET SENT INTERESTS (interests I sent to others)
+export const getSentInterests = async (req, res) => {
+  try {
+    console.log('=== GET SENT INTERESTS ===');
+    console.log('User ID:', req.user.id);
+
+    const interests = await Interest.find({
+      from: req.user.id
+    })
+      .populate('to', 'name email')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Format with profile info
+    const formatted = await Promise.all(
+      interests.map(async (interest) => {
+        const toProfile = await Profile.findOne({ user: interest.to._id });
+
+        return {
+          _id: interest._id,
+          status: interest.status,
+          to: {
+            _id: interest.to._id,
+            name: toProfile?.fullName || interest.to.name || 'Unknown',
+            email: interest.to.email,
+            image: getImageUrl(toProfile?.image),
+            age: toProfile?.age,
+            city: toProfile?.city,
+            profession: toProfile?.profession
+          },
+          createdAt: interest.createdAt
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      interests: formatted
+    });
+
+  } catch (error) {
+    console.error('Get sent interests error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Error fetching sent interests",
+      error: error.message 
+    });
+  }
+};
+
+// ========== SHORTLIST MANAGEMENT ==========
+
+// Add to shortlist
 export const addToShortlist = async (req, res) => {
   try {
     const userId = req.user.id;
     const { profileId } = req.body;
 
-    // Get user's profile
     const userProfile = await Profile.findOne({ user: userId });
     
     if (!userProfile) {
@@ -61,12 +338,10 @@ export const addToShortlist = async (req, res) => {
       });
     }
 
-    // Initialize shortlist if it doesn't exist
     if (!userProfile.shortlist) {
       userProfile.shortlist = [];
     }
 
-    // Check if already in shortlist
     if (userProfile.shortlist.includes(profileId)) {
       return res.status(400).json({ 
         success: false, 
@@ -74,7 +349,6 @@ export const addToShortlist = async (req, res) => {
       });
     }
 
-    // Add to shortlist
     userProfile.shortlist.push(profileId);
     await userProfile.save();
 
@@ -93,7 +367,7 @@ export const addToShortlist = async (req, res) => {
   }
 };
 
-// Remove from shortlist (NEW)
+// Remove from shortlist
 export const removeFromShortlist = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -115,7 +389,6 @@ export const removeFromShortlist = async (req, res) => {
       });
     }
 
-    // Remove from shortlist
     userProfile.shortlist = userProfile.shortlist.filter(
       id => id.toString() !== profileId
     );
@@ -136,7 +409,7 @@ export const removeFromShortlist = async (req, res) => {
   }
 };
 
-// Get shortlisted profiles (NEW)
+// Get shortlisted profiles
 export const getShortlist = async (req, res) => {
   try {
     const userId = req.user.id;
