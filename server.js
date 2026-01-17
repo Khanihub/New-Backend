@@ -1,112 +1,78 @@
-// server.js or index.js - COMPLETE BACKEND SERVER FILE
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import connectDB from "./config/db.js";
+import authRoutes from "./routes/authRoutes.js";
+import profileRoutes from "./routes/profileRoutes.js";
+import matchRoutes from "./routes/matchRoutes.js";
+import messageRoutes from "./routes/messageRoutes.js";
+import interestRoutes from "./routes/intrestRoutes.js";
 
-import express from 'express';
-import mongoose from 'mongoose';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-// Import routes
-import authRoutes from './routes/authRoutes.js';
-import profileRoutes from './routes/profileRoutes.js';
-import matchRoutes from './routes/matchRoutes.js';
-import interestRoutes from './routes/interestRoutes.js';
-
-// Load environment variables
 dotenv.config();
-
-// Get __dirname equivalent in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+connectDB();
 
 const app = express();
 
-// CORS configuration
+// Request logging middleware
+// Better logging middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  
+  // Log body for POST/PUT - but check if it exists
+  if (req.method === 'POST' || req.method === 'PUT') {
+    // For multipart, body might be empty until multer processes it
+    console.log('Content-Type:', req.headers['content-type']);
+    if (req.body && Object.keys(req.body).length > 0) {
+      console.log('Request Body:', req.body);
+    } else {
+      console.log('Request Body: (multipart - will be parsed by multer)');
+    }
+  }
+  
+  next();
+});
+
 app.use(cors({
   origin: [
+    'https://trae-dating-project.vercel.app', 
     'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:3000',
-    process.env.FRONTEND_URL,
-    // Add your Railway frontend URL here if needed
-  ].filter(Boolean),
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+    'http://localhost:5174'
+  ],
+  credentials: true
 }));
 
-// Body parser middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use("/uploads", express.static("uploads"));
 
-// ✅ CRITICAL: Serve static files from uploads directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/profile", profileRoutes);     // ← CHANGED FROM /api/profiles TO /api/profile
+app.use("/api/interests", interestRoutes);
+app.use("/api/matches", matchRoutes);
+app.use("/api/messages", messageRoutes);
 
-// Health check route
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'Server is running',
-    timestamp: new Date().toISOString()
-  });
+// Test routes for debugging
+app.get("/api/test", (req, res) => {
+  res.json({ message: "Backend is working", timestamp: new Date().toISOString() });
 });
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/profile', profileRoutes);
-app.use('/api/matches', matchRoutes);
-app.use('/api/interests', interestRoutes);
-
-// Root route
-app.get('/', (req, res) => {
-  res.json({ 
-    message: 'Dating App API',
-    version: '1.0.0',
-    endpoints: {
-      auth: '/api/auth',
-      profile: '/api/profile',
-      matches: '/api/matches',
-      interests: '/api/interests',
-      uploads: '/uploads'
-    }
-  });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ message: 'Route not found' });
+app.post("/api/test-upload", (req, res) => {
+  console.log("Test upload request body:", req.body);
+  res.json({ success: true, received: req.body });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
+  console.error('Global Error Handler:', err);
   res.status(500).json({ 
-    message: err.message || 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
 
-// Database connection
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('✅ MongoDB Connected Successfully');
-  } catch (error) {
-    console.error('❌ MongoDB Connection Error:', error.message);
-    process.exit(1);
-  }
-};
+// Test route
+app.get("/", (req, res) => res.send("Backend is live"));
 
-// Start server
 const PORT = process.env.PORT || 5000;
-
-connectDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📁 Uploads accessible at: http://localhost:${PORT}/uploads/`);
-    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  });
-});
-
-export default app;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
