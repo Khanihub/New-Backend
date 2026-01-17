@@ -5,14 +5,21 @@ import User from "../model/User.js";
 import Profile from "../model/Profile.js";
 
 // Helper function to get correct image URL
+// Helper function to get correct image URL
 const getImageUrl = (imagePath) => {
   if (!imagePath) return 'https://i.pravatar.cc/400?img=1';
   
   // If it's already a full URL, return it
   if (imagePath.startsWith('http')) return imagePath;
   
-  // Get base URL from environment or use localhost as fallback
-  const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+  // Determine base URL
+  const baseUrl = process.env.BACKEND_URL 
+    || process.env.RAILWAY_PUBLIC_DOMAIN 
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : process.env.NODE_ENV === 'production'
+        ? 'https://new-backend-production-766f.up.railway.app'
+        : 'http://localhost:5000';
+  
   return `${baseUrl}${imagePath}`;
 };
 
