@@ -1,8 +1,20 @@
-// MatchController.js - UPDATED VERSION
+// MatchController.js - UPDATED VERSION WITH DYNAMIC IMAGE URLs
 
 import Match from "../model/Match.js";
 import User from "../model/User.js";
 import Profile from "../model/Profile.js";
+
+// Helper function to get correct image URL
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return 'https://i.pravatar.cc/400?img=1';
+  
+  // If it's already a full URL, return it
+  if (imagePath.startsWith('http')) return imagePath;
+  
+  // Get base URL from environment or use localhost as fallback
+  const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+  return `${baseUrl}${imagePath}`;
+};
 
 // Get all matches for current user (existing matches - keep as is)
 export const getMyMatches = async (req, res) => {
@@ -60,9 +72,7 @@ export const sendInterest = async (req, res) => {
   }
 };
 
-// ========== NEW FUNCTIONS FOR BROWSE MATCHES PAGE ==========
-
-// Get potential matches to browse (NEW)
+// Get potential matches to browse
 export const getBrowseMatches = async (req, res) => {
   try {
     console.log('=== GET BROWSE MATCHES ===');
@@ -133,7 +143,7 @@ export const getBrowseMatches = async (req, res) => {
       interests: profile.interests ? 
         (Array.isArray(profile.interests) ? profile.interests : 
          profile.interests.split(',').map(i => i.trim())) : [],
-      image: profile.image ? `http://localhost:5000${profile.image}` : 'https://i.pravatar.cc/400?img=1',
+      image: getImageUrl(profile.image), // ← UPDATED TO USE HELPER
       verified: true,
       online: false,
     }));
@@ -157,7 +167,7 @@ export const getBrowseMatches = async (req, res) => {
   }
 };
 
-// Get filtered browse matches (NEW)
+// Get filtered browse matches
 export const getFilteredBrowseMatches = async (req, res) => {
   try {
     console.log('=== GET FILTERED BROWSE MATCHES ===');
@@ -240,7 +250,7 @@ export const getFilteredBrowseMatches = async (req, res) => {
       interests: profile.interests ? 
         (Array.isArray(profile.interests) ? profile.interests : 
          profile.interests.split(',').map(i => i.trim())) : [],
-      image: profile.image ? `http://localhost:5000${profile.image}` : 'https://i.pravatar.cc/400?img=1',
+      image: getImageUrl(profile.image), // ← UPDATED TO USE HELPER
       verified: true,
       online: false,
     }));
