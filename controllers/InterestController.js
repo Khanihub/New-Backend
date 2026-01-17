@@ -23,6 +23,19 @@ export const sendInterest = async (req, res) => {
 
   res.status(201).json(interest)
 }
+export const getMyInterests = async (req, res) => {
+  try {
+    const userId = req.user.id
+
+    const interests = await Interest.find({ from: userId })
+      .populate('to', 'fullName image') // optional: populate profile info
+
+    res.status(200).json({ interests })
+  } catch (err) {
+    console.error('Error fetching interests:', err)
+    res.status(500).json({ message: 'Server error' })
+  }
+}
 
 // ACCEPT INTEREST (keep existing)
 export const acceptInterest = async (req, res) => {

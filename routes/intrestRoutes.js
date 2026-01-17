@@ -7,7 +7,8 @@ import {
   acceptInterest,
   addToShortlist,
   removeFromShortlist,
-  getShortlist 
+  getShortlist,
+  getMyInterests
 } from "../controllers/InterestController.js"
 
 const router = express.Router()
@@ -20,5 +21,6 @@ router.put("/:id/accept", protect, acceptInterest)
 router.post("/shortlist/add", protect, addToShortlist)
 router.post("/shortlist/remove", protect, removeFromShortlist)
 router.get("/shortlist", protect, getShortlist)
+router.get("/", protect, getMyInterests)
 
 export default router
