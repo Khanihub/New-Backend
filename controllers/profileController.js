@@ -1,8 +1,4 @@
-// profileController.js - SAFER VERSION
-
 import Profile from "../model/Profile.js";
-
-// D:\Dating App\backend-main\controllers\profileController.js
 
 export const createProfile = async (req, res) => {
   try {
@@ -11,20 +7,16 @@ export const createProfile = async (req, res) => {
     console.log('Request Body:', req.body);
     console.log('File:', req.file);
     
-    // Check authentication
     if (!req.user || !req.user.id) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // Check if profile already exists
     const exists = await Profile.findOne({ user: req.user.id });
     if (exists) {
       console.log('Profile already exists, updating instead');
-      // Update instead of create
       return updateProfile(req, res);
     }
 
-    // Extract and validate data
     const {
       fullName,
       gender,
@@ -40,15 +32,8 @@ export const createProfile = async (req, res) => {
       genderPreference
     } = req.body;
 
-    console.log('Extracted fields:', {
-      fullName,
-      gender,
-      age,
-      city,
-      education
-    });
+    console.log('Extracted fields:', { fullName, gender, age, city, education });
 
-    // Validate required fields FIRST
     if (!fullName || !gender || !age || !city || !education) {
       const missing = [];
       if (!fullName) missing.push('fullName');
@@ -64,7 +49,6 @@ export const createProfile = async (req, res) => {
       });
     }
 
-    // Build profile data
     const profileData = {
       user: req.user.id,
       fullName: fullName.trim(),
@@ -81,7 +65,6 @@ export const createProfile = async (req, res) => {
       genderPreference: genderPreference || 'opposite'
     };
 
-    // Add image if uploaded
     if (req.file) {
       profileData.image = `/uploads/${req.file.filename}`;
       console.log('Image uploaded:', profileData.image);
@@ -89,7 +72,6 @@ export const createProfile = async (req, res) => {
 
     console.log('Creating profile with data:', profileData);
 
-    // Create profile
     const profile = await Profile.create(profileData);
     console.log('Profile created successfully:', profile._id);
     
@@ -101,12 +83,10 @@ export const createProfile = async (req, res) => {
 
   } catch (err) {
     console.error("=== CREATE PROFILE ERROR ===");
-    console.error("Error Name:", err.name);
-    console.error("Error Message:", err.message);
+    console.error("Error:", err);
     
     if (err.name === 'ValidationError') {
       const messages = Object.values(err.errors).map(val => val.message);
-      console.log('Validation Errors:', messages);
       return res.status(400).json({ 
         message: 'Validation Error', 
         errors: messages 
@@ -137,7 +117,6 @@ export const updateProfile = async (req, res) => {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // Extract data
     const {
       fullName,
       gender,
@@ -153,7 +132,6 @@ export const updateProfile = async (req, res) => {
       genderPreference
     } = req.body;
 
-    // Validate required fields
     if (!fullName || !gender || !age || !city || !education) {
       const missing = [];
       if (!fullName) missing.push('fullName');
@@ -168,7 +146,6 @@ export const updateProfile = async (req, res) => {
       });
     }
     
-    // Build update data
     const updateData = {
       fullName: fullName.trim(),
       gender: gender.trim(),
@@ -184,7 +161,6 @@ export const updateProfile = async (req, res) => {
       genderPreference: genderPreference || 'opposite'
     };
     
-    // Add image if uploaded
     if (req.file) {
       updateData.image = `/uploads/${req.file.filename}`;
       console.log('New image uploaded:', updateData.image);
@@ -192,7 +168,6 @@ export const updateProfile = async (req, res) => {
     
     console.log("Update data prepared:", updateData);
     
-    // Find and update or create
     let profile = await Profile.findOne({ user: req.user.id });
     
     if (profile) {
@@ -241,7 +216,6 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-// Keep these the same
 export const getMyProfile = async (req, res) => {
   try {
     console.log("Getting profile for user:", req.user?.id);
@@ -254,7 +228,10 @@ export const getMyProfile = async (req, res) => {
     
     if (!profile) {
       console.log("Profile not found for user:", req.user.id);
-      return res.status(404).json({ message: "Profile not found" });
+      return res.status(404).json({ 
+        message: "Profile not found",
+        needsProfile: true
+      });
     }
     
     console.log("Profile found:", profile._id);
