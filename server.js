@@ -9,6 +9,7 @@ import profileRoutes from "./routes/profileRoutes.js";
 import matchRoutes from "./routes/matchRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import interestRoutes from "./routes/intrestRoutes.js";
+import settingsRoutes from "./routes/settingRoutes.js";
 
 // ⭐ Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -65,7 +66,7 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/interests", interestRoutes);
 app.use("/api/matches", matchRoutes);
 app.use("/api/messages", messageRoutes);
-
+app.use("/api/settings", settingsRoutes);
 // Test routes for debugging
 app.get("/api/test", (req, res) => {
   res.json({ message: "Backend is working", timestamp: new Date().toISOString() });
