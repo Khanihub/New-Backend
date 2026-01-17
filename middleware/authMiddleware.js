@@ -19,6 +19,7 @@ export const register = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
 export const protect = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
