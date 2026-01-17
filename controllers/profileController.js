@@ -27,8 +27,9 @@ export const createProfile = async (req, res) => {
       education: req.body.education,
       profession: req.body.profession || "",
       about: req.body.about || "",
-      interests: req.body.interests || '', 
-      height: req.body.height ? parseInt(req.body.height) : null
+      interests: req.body.interests || "",
+      height: req.body.height ? parseInt(req.body.height) : null,
+      genderPreference: req.body.genderPreference || 'opposite' // ADD THIS
     };
 
     if (req.file) {
@@ -88,56 +89,65 @@ export const updateProfile = async (req, res) => {
     console.log("User ID from token:", req.user?.id);
     console.log("Request Body:", req.body);
     console.log("File:", req.file);
-    console.log("Headers:", req.headers);
     
-    // Pehle check karein user hai ya nahi
     if (!req.user || !req.user.id) {
       console.log("ERROR: No user found in request");
       return res.status(401).json({ message: "User not authenticated" });
     }
     
-    // Minimal data
+    // Prepare update data
     const updateData = {
-      fullName: req.body.fullName || "Test Name",
-      gender: req.body.gender || "male",
-      age: parseInt(req.body.age) || 25,
-      city: req.body.city || "Test City",
-      education: req.body.education || "Test Education",
-      isMuslim: req.body.isMuslim === "true" || true,
-      user: req.user.id
+      fullName: req.body.fullName,
+      gender: req.body.gender,
+      age: parseInt(req.body.age) || undefined,
+      city: req.body.city,
+      education: req.body.education,
+      profession: req.body.profession || '',
+      interests: req.body.interests || '',
+      about: req.body.about || '',
+      height: parseInt(req.body.height) || undefined,
+      isMuslim: req.body.isMuslim === "true" || req.body.isMuslim === true,
+      sect: req.body.sect || '',
+      genderPreference: req.body.genderPreference || 'opposite' // ADD THIS
     };
     
-    console.log("Update Data prepared:", updateData);
+    // Add image if uploaded
+    if (req.file) {
+      updateData.image = `/uploads/${req.file.filename}`;
+    }
     
-    // Find and update or create
+    console.log("Update data:", updateData);
+    
+    // Find existing profile
     let profile = await Profile.findOne({ user: req.user.id });
     
     if (profile) {
-      console.log("Found existing profile, updating...");
+      console.log("Updating existing profile");
+      // Update existing
       profile = await Profile.findOneAndUpdate(
         { user: req.user.id },
         updateData,
-        { new: true }
+        { new: true, runValidators: true }
       );
     } else {
-      console.log("No profile found, creating new...");
+      console.log("Creating new profile");
+      // Create new
+      updateData.user = req.user.id;
       profile = await Profile.create(updateData);
     }
     
-    console.log("Profile saved successfully:", profile._id);
+    console.log("Profile saved:", profile._id);
+    
     res.json({
       success: true,
-      message: "Profile saved",
+      message: "Profile saved successfully",
       profile: profile
     });
     
   } catch (error) {
     console.error("=== UPDATE PROFILE ERROR ===");
-    console.error("Error Name:", error.name);
-    console.error("Error Message:", error.message);
-    console.error("Error Stack:", error.stack);
+    console.error("Error:", error);
     
-    // Specific error handling
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(e => e.message);
       return res.status(400).json({ 
@@ -152,7 +162,6 @@ export const updateProfile = async (req, res) => {
       });
     }
     
-    // General error
     res.status(500).json({ 
       message: "Internal server error",
       error: error.message 
