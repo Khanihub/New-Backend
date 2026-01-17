@@ -14,11 +14,21 @@ connectDB();
 const app = express();
 
 // Request logging middleware
+// Better logging middleware
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  
+  // Log body for POST/PUT - but check if it exists
   if (req.method === 'POST' || req.method === 'PUT') {
-    console.log('Request Body:', req.body);
+    // For multipart, body might be empty until multer processes it
+    console.log('Content-Type:', req.headers['content-type']);
+    if (req.body && Object.keys(req.body).length > 0) {
+      console.log('Request Body:', req.body);
+    } else {
+      console.log('Request Body: (multipart - will be parsed by multer)');
+    }
   }
+  
   next();
 });
 
