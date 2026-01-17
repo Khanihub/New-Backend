@@ -1,10 +1,9 @@
-// MatchController.js - UPDATED VERSION WITH DYNAMIC IMAGE URLs
+// MatchController.js - FIXED VERSION WITH PROPER IMAGE URLS
 
 import Match from "../model/Match.js";
 import User from "../model/User.js";
 import Profile from "../model/Profile.js";
 
-// Helper function to get correct image URL
 // Helper function to get correct image URL
 const getImageUrl = (imagePath) => {
   if (!imagePath) return 'https://i.pravatar.cc/400?img=1';
@@ -12,18 +11,21 @@ const getImageUrl = (imagePath) => {
   // If it's already a full URL, return it
   if (imagePath.startsWith('http')) return imagePath;
   
-  // Determine base URL
+  // Determine base URL - prioritize environment variables
   const baseUrl = process.env.BACKEND_URL 
-    || process.env.RAILWAY_PUBLIC_DOMAIN 
+    || (process.env.RAILWAY_PUBLIC_DOMAIN 
       ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
       : process.env.NODE_ENV === 'production'
         ? 'https://new-backend-production-766f.up.railway.app'
-        : 'http://localhost:5000';
+        : 'http://localhost:5000');
   
-  return `${baseUrl}${imagePath}`;
+  // Ensure imagePath starts with /
+  const path = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+  
+  return `${baseUrl}${path}`;
 };
 
-// Get all matches for current user (existing matches - keep as is)
+// Get all matches for current user (existing matches)
 export const getMyMatches = async (req, res) => {
   try {
     const matches = await Match.find({
@@ -37,7 +39,10 @@ export const getMyMatches = async (req, res) => {
       return {
         ...match,
         interestSent: match.interestSentBy.includes(req.user.id),
-        otherUser
+        otherUser: {
+          ...otherUser,
+          image: getImageUrl(otherUser.image)
+        }
       };
     });
 
@@ -48,7 +53,7 @@ export const getMyMatches = async (req, res) => {
   }
 };
 
-// Send interest to another user (keep as is)
+// Send interest to another user
 export const sendInterest = async (req, res) => {
   const senderId = req.user.id;
   const receiverId = req.params.userId;
@@ -134,7 +139,7 @@ export const getBrowseMatches = async (req, res) => {
 
     console.log('Found profiles:', profiles.length);
 
-    // Format for frontend
+    // Format for frontend with proper image URLs
     const formattedMatches = profiles.map(profile => ({
       id: profile._id,
       userId: profile.user._id,
@@ -150,12 +155,13 @@ export const getBrowseMatches = async (req, res) => {
       interests: profile.interests ? 
         (Array.isArray(profile.interests) ? profile.interests : 
          profile.interests.split(',').map(i => i.trim())) : [],
-      image: getImageUrl(profile.image), // ← UPDATED TO USE HELPER
+      image: getImageUrl(profile.image),
       verified: true,
       online: false,
     }));
 
     console.log('Returning matches:', formattedMatches.length);
+    console.log('Sample image URL:', formattedMatches[0]?.image);
 
     res.status(200).json({
       success: true,
@@ -257,7 +263,7 @@ export const getFilteredBrowseMatches = async (req, res) => {
       interests: profile.interests ? 
         (Array.isArray(profile.interests) ? profile.interests : 
          profile.interests.split(',').map(i => i.trim())) : [],
-      image: getImageUrl(profile.image), // ← UPDATED TO USE HELPER
+      image: getImageUrl(profile.image),
       verified: true,
       online: false,
     }));

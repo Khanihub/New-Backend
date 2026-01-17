@@ -1,4 +1,27 @@
+// ProfileController.js - FIXED VERSION WITH PROPER IMAGE URLS
+
 import Profile from "../model/Profile.js";
+
+// Helper function to get correct image URL
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return null;
+  
+  // If it's already a full URL, return it
+  if (imagePath.startsWith('http')) return imagePath;
+  
+  // Determine base URL - prioritize environment variables
+  const baseUrl = process.env.BACKEND_URL 
+    || (process.env.RAILWAY_PUBLIC_DOMAIN 
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : process.env.NODE_ENV === 'production'
+        ? 'https://new-backend-production-766f.up.railway.app'
+        : 'http://localhost:5000');
+  
+  // Ensure imagePath starts with /
+  const path = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+  
+  return `${baseUrl}${path}`;
+};
 
 export const createProfile = async (req, res) => {
   try {
@@ -75,10 +98,16 @@ export const createProfile = async (req, res) => {
     const profile = await Profile.create(profileData);
     console.log('Profile created successfully:', profile._id);
     
+    // Return profile with full image URL
+    const profileResponse = profile.toObject();
+    if (profileResponse.image) {
+      profileResponse.image = getImageUrl(profileResponse.image);
+    }
+    
     res.status(201).json({
       success: true,
       message: 'Profile created successfully',
-      profile: profile
+      profile: profileResponse
     });
 
   } catch (err) {
@@ -185,10 +214,16 @@ export const updateProfile = async (req, res) => {
     
     console.log("Profile saved successfully:", profile._id);
     
+    // Return profile with full image URL
+    const profileResponse = profile.toObject();
+    if (profileResponse.image) {
+      profileResponse.image = getImageUrl(profileResponse.image);
+    }
+    
     res.json({
       success: true,
       message: "Profile saved successfully",
-      profile: profile
+      profile: profileResponse
     });
     
   } catch (error) {
@@ -235,7 +270,15 @@ export const getMyProfile = async (req, res) => {
     }
     
     console.log("Profile found:", profile._id);
-    res.json(profile);
+    
+    // Return profile with full image URL
+    const profileResponse = profile.toObject();
+    if (profileResponse.image) {
+      profileResponse.image = getImageUrl(profileResponse.image);
+      console.log("Profile image URL:", profileResponse.image);
+    }
+    
+    res.json(profileResponse);
     
   } catch (error) {
     console.error("Get profile error:", error);
@@ -259,7 +302,17 @@ export const deleteProfile = async (req, res) => {
 export const getApprovedProfiles = async (req, res) => {
   try {
     const profiles = await Profile.find({ status: "approved" }).populate("user", "name");
-    res.json(profiles);
+    
+    // Add full image URLs to all profiles
+    const profilesWithImages = profiles.map(profile => {
+      const profileObj = profile.toObject();
+      if (profileObj.image) {
+        profileObj.image = getImageUrl(profileObj.image);
+      }
+      return profileObj;
+    });
+    
+    res.json(profilesWithImages);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -275,7 +328,14 @@ export const updateProfileStatus = async (req, res) => {
     );
 
     if (!profile) return res.status(404).json({ message: "Profile not found" });
-    res.json(profile);
+    
+    // Return profile with full image URL
+    const profileResponse = profile.toObject();
+    if (profileResponse.image) {
+      profileResponse.image = getImageUrl(profileResponse.image);
+    }
+    
+    res.json(profileResponse);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
