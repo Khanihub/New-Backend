@@ -283,3 +283,49 @@ export const getFilteredBrowseMatches = async (req, res) => {
     });
   }
 };
+
+export const deleteMatch = async (req, res) => {
+  try {
+    console.log('=== DELETE MATCH ===');
+    console.log('Match ID:', req.params.matchId);
+    console.log('User ID:', req.user.id);
+
+    const match = await Match.findById(req.params.matchId);
+
+    if (!match) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Match not found' 
+      });
+    }
+
+    // Check if user is part of this match
+    if (!match.users.includes(req.user.id)) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Not authorized to delete this match' 
+      });
+    }
+
+    // Delete all messages in this match
+    await Message.deleteMany({ match: req.params.matchId });
+    
+    // Delete the match
+    await Match.findByIdAndDelete(req.params.matchId);
+
+    console.log('✅ Match and messages deleted successfully');
+
+    res.json({
+      success: true,
+      message: 'Conversation deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete match error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error deleting match',
+      error: error.message 
+    });
+  }
+};
