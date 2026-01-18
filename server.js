@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import http from "http";
+import { Server } from "socket.io";
 import path from "path";
 import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
@@ -19,6 +21,17 @@ dotenv.config();
 connectDB();
 
 const app = express();
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: [
+      'http://localhost:5173',
+      'https://trae-dating-project.vercel.app'
+    ],
+    credentials: true
+  }
+});
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -68,6 +81,47 @@ app.use("/api/matches", matchRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/settings", settingsRoutes);
 // Test routes for debugging
+
+io.on("connection", (socket) => {
+  console.log("New client connected:", socket.id);
+
+  // Join a chat room
+  socket.on("joinChat", (matchId) => {
+    socket.join(matchId);
+    console.log(`Socket ${socket.id} joined room ${matchId}`);
+  });
+
+  // Listen for new messages
+  socket.on("sendMessage", async (data) => {
+    // data = { matchId, text, sender }
+    try {
+      // Save message to DB
+      const Message = (await import("./models/Message.js")).default;
+      const newMessage = await Message.create({
+        matchId: data.matchId,
+        sender: data.sender,
+        text: data.text,
+        createdAt: new Date()
+      });
+
+      // Emit to everyone in the room
+      io.to(data.matchId).emit("newMessage", {
+        _id: newMessage._id,
+        matchId: newMessage.matchId,
+        sender: newMessage.sender,
+        text: newMessage.text,
+        createdAt: newMessage.createdAt,
+        isMine: false 
+      });
+    } catch (err) {
+      console.error("Socket sendMessage error:", err);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
+});
 app.get("/api/test", (req, res) => {
   res.json({ message: "Backend is working", timestamp: new Date().toISOString() });
 });
