@@ -80,36 +80,48 @@ app.use("/api/interests", interestRoutes);
 app.use("/api/matches", matchRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/settings", settingsRoutes);
+// Test routes for debugging
 
-// ====== SOCKET.IO CONNECTION HANDLING ======
 io.on("connection", (socket) => {
-  console.log("✅ New client connected:", socket.id);
+  console.log("New client connected:", socket.id);
 
   // Join a chat room
   socket.on("joinChat", (matchId) => {
     socket.join(matchId);
-    console.log(`👤 Socket ${socket.id} joined room ${matchId}`);
+    console.log(`Socket ${socket.id} joined room ${matchId}`);
   });
 
   // Listen for new messages
-  socket.on("sendMessage", ({ matchId, message }) => {
-    console.log("📤 Broadcasting message to room:", matchId);
-    // Broadcast to everyone in the room EXCEPT sender
-    socket.to(matchId).emit("newMessage", message);
-  });
+  socket.on("sendMessage", async (data) => {
+    // data = { matchId, text, sender }
+    try {
+      // Save message to DB
+      const Message = (await import("./models/Message.js")).default;
+      const newMessage = await Message.create({
+        matchId: data.matchId,
+        sender: data.sender,
+        text: data.text,
+        createdAt: new Date()
+      });
 
-  // Listen for message deletions
-  socket.on("deleteMessage", ({ matchId, messageId }) => {
-    console.log("🗑️ Broadcasting deletion to room:", matchId);
-    socket.to(matchId).emit("messageDeleted", { messageId });
+      // Emit to everyone in the room
+      io.to(data.matchId).emit("newMessage", {
+        _id: newMessage._id,
+        matchId: newMessage.matchId,
+        sender: newMessage.sender,
+        text: newMessage.text,
+        createdAt: newMessage.createdAt,
+        isMine: false 
+      });
+    } catch (err) {
+      console.error("Socket sendMessage error:", err);
+    }
   });
 
   socket.on("disconnect", () => {
-    console.log("❌ Client disconnected:", socket.id);
+    console.log("Client disconnected:", socket.id);
   });
 });
-
-// Test routes for debugging
 app.get("/api/test", (req, res) => {
   res.json({ message: "Backend is working", timestamp: new Date().toISOString() });
 });
@@ -124,7 +136,6 @@ app.get("/api/health", (req, res) => {
   res.json({ 
     status: "ok", 
     message: "Server is running",
-    socketio: "enabled ✅",
     uploadsPath: path.join(__dirname, 'uploads'),
     backendUrl: process.env.BACKEND_URL || process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:5000',
     nodeEnv: process.env.NODE_ENV || 'development'
@@ -141,14 +152,11 @@ app.use((err, req, res, next) => {
 });
 
 // Test route
-app.get("/", (req, res) => res.send("Backend is live with Socket.IO ✅"));
+app.get("/", (req, res) => res.send("Backend is live"));
 
 const PORT = process.env.PORT || 5000;
-
-// ⭐⭐⭐ CRITICAL FIX: Use server.listen() NOT app.listen() ⭐⭐⭐
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🔌 Socket.IO enabled - Real-time messaging active!`);
   console.log(`📁 Uploads directory: ${path.join(__dirname, 'uploads')}`);
   console.log(`🌐 Backend URL: ${process.env.BACKEND_URL || 'http://localhost:' + PORT}`);
 });
