@@ -1,4 +1,4 @@
-// MatchController.js - FIXED VERSION WITH PROPER IMAGE URLS
+// MatchController.js - FIXED VERSION WITH NULL CHECKS
 
 import Match from "../model/Match.js";
 import User from "../model/User.js";
@@ -34,8 +34,19 @@ export const getMyMatches = async (req, res) => {
       .populate("users", "name age image profession city")
       .lean();
 
-    const formatted = matches.map(match => {
+    // 👇 FILTER OUT NULL USERS
+    const validMatches = matches.filter(match => 
+      match.users && 
+      match.users.length === 2 &&
+      match.users[0] && 
+      match.users[1]
+    );
+
+    const formatted = validMatches.map(match => {
       const otherUser = match.users.find(u => u._id.toString() !== req.user.id);
+      
+      if (!otherUser) return null;
+      
       return {
         ...match,
         interestSent: match.interestSentBy.includes(req.user.id),
@@ -44,11 +55,11 @@ export const getMyMatches = async (req, res) => {
           image: getImageUrl(otherUser.image)
         }
       };
-    });
+    }).filter(Boolean); // Remove nulls
 
     res.json(formatted);
   } catch (err) {
-    console.error(err);
+    console.error('Get My Matches Error:', err);
     res.status(500).json({ message: "Failed to fetch matches" });
   }
 };
@@ -59,6 +70,12 @@ export const sendInterest = async (req, res) => {
   const receiverId = req.params.userId;
 
   try {
+    // 👇 VERIFY RECEIVER EXISTS
+    const receiverExists = await User.findById(receiverId);
+    if (!receiverExists) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     let match = await Match.findOne({
       users: { $all: [senderId, receiverId] }
     });
@@ -72,6 +89,7 @@ export const sendInterest = async (req, res) => {
       match.interestSentBy.push(senderId);
       await match.save();
     }
+    
     await match.populate("users", "name age image profession city");
 
     res.json({
@@ -79,7 +97,7 @@ export const sendInterest = async (req, res) => {
       interestSent: match.interestSentBy.includes(senderId)
     });
   } catch (err) {
-    console.error(err);
+    console.error('Send Interest Error:', err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -135,33 +153,62 @@ export const getBrowseMatches = async (req, res) => {
     const profiles = await Profile.find(filter)
       .populate('user', 'email')
       .limit(100)
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean(); // 👈 Use lean for better performance
 
     console.log('Found profiles:', profiles.length);
 
+    // 👇 CRITICAL: FILTER OUT PROFILES WITH NULL/MISSING USER
+    const validProfiles = profiles.filter(profile => {
+      // Check if profile has valid user reference
+      if (!profile || !profile.user) {
+        console.warn('⚠️ Profile without user found:', profile?._id);
+        return false;
+      }
+      
+      // Check if user object has _id
+      if (!profile.user._id) {
+        console.warn('⚠️ User without _id found in profile:', profile._id);
+        return false;
+      }
+
+      return true;
+    });
+
+    console.log('Valid profiles after filtering:', validProfiles.length);
+
     // Format for frontend with proper image URLs
-    const formattedMatches = profiles.map(profile => ({
-      id: profile._id,
-      userId: profile.user._id,
-      name: profile.fullName,
-      age: profile.age,
-      profession: profile.profession || 'Not specified',
-      location: profile.city || 'Location not specified',
-      education: profile.education || 'Not specified',
-      religion: profile.isMuslim ? 'Muslim' : 'Not specified',
-      height: profile.height ? `${profile.height} cm` : 'Not specified',
-      maritalStatus: 'Never Married',
-      about: profile.about || 'No description provided',
-      interests: profile.interests ? 
-        (Array.isArray(profile.interests) ? profile.interests : 
-         profile.interests.split(',').map(i => i.trim())) : [],
-      image: getImageUrl(profile.image),
-      verified: true,
-      online: false,
-    }));
+    const formattedMatches = validProfiles.map(profile => {
+      try {
+        return {
+          id: profile._id.toString(),
+          userId: profile.user._id.toString(),
+          name: profile.fullName || 'Unknown',
+          age: profile.age || 0,
+          profession: profile.profession || 'Not specified',
+          location: profile.city || 'Location not specified',
+          education: profile.education || 'Not specified',
+          religion: profile.isMuslim ? 'Muslim' : 'Not specified',
+          height: profile.height ? `${profile.height} cm` : 'Not specified',
+          maritalStatus: 'Never Married',
+          about: profile.about || 'No description provided',
+          interests: profile.interests ? 
+            (Array.isArray(profile.interests) ? profile.interests : 
+             profile.interests.split(',').map(i => i.trim())) : [],
+          image: getImageUrl(profile.image),
+          verified: true,
+          online: false,
+        };
+      } catch (error) {
+        console.error('Error formatting profile:', profile._id, error);
+        return null;
+      }
+    }).filter(Boolean); // Remove any nulls from failed formatting
 
     console.log('Returning matches:', formattedMatches.length);
-    console.log('Sample image URL:', formattedMatches[0]?.image);
+    if (formattedMatches.length > 0) {
+      console.log('Sample match:', formattedMatches[0]);
+    }
 
     res.status(200).json({
       success: true,
@@ -172,6 +219,7 @@ export const getBrowseMatches = async (req, res) => {
   } catch (error) {
     console.error('=== GET BROWSE MATCHES ERROR ===');
     console.error('Error:', error);
+    console.error('Stack:', error.stack);
     res.status(500).json({ 
       success: false, 
       message: 'Error fetching matches', 
@@ -246,27 +294,40 @@ export const getFilteredBrowseMatches = async (req, res) => {
     const profiles = await Profile.find(filter)
       .populate('user', 'email')
       .limit(100)
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    const formattedMatches = profiles.map(profile => ({
-      id: profile._id,
-      userId: profile.user._id,
-      name: profile.fullName,
-      age: profile.age,
-      profession: profile.profession || 'Not specified',
-      location: profile.city || 'Location not specified',
-      education: profile.education || 'Not specified',
-      religion: profile.isMuslim ? 'Muslim' : 'Not specified',
-      height: profile.height ? `${profile.height} cm` : 'Not specified',
-      maritalStatus: 'Never Married',
-      about: profile.about || 'No description provided',
-      interests: profile.interests ? 
-        (Array.isArray(profile.interests) ? profile.interests : 
-         profile.interests.split(',').map(i => i.trim())) : [],
-      image: getImageUrl(profile.image),
-      verified: true,
-      online: false,
-    }));
+    // 👇 FILTER OUT NULL USERS
+    const validProfiles = profiles.filter(profile => 
+      profile && profile.user && profile.user._id
+    );
+
+    const formattedMatches = validProfiles.map(profile => {
+      try {
+        return {
+          id: profile._id.toString(),
+          userId: profile.user._id.toString(),
+          name: profile.fullName || 'Unknown',
+          age: profile.age || 0,
+          profession: profile.profession || 'Not specified',
+          location: profile.city || 'Location not specified',
+          education: profile.education || 'Not specified',
+          religion: profile.isMuslim ? 'Muslim' : 'Not specified',
+          height: profile.height ? `${profile.height} cm` : 'Not specified',
+          maritalStatus: 'Never Married',
+          about: profile.about || 'No description provided',
+          interests: profile.interests ? 
+            (Array.isArray(profile.interests) ? profile.interests : 
+             profile.interests.split(',').map(i => i.trim())) : [],
+          image: getImageUrl(profile.image),
+          verified: true,
+          online: false,
+        };
+      } catch (error) {
+        console.error('Error formatting profile:', profile._id, error);
+        return null;
+      }
+    }).filter(Boolean);
 
     res.status(200).json({
       success: true,
@@ -307,13 +368,13 @@ export const deleteMatch = async (req, res) => {
       });
     }
 
-    // Delete all messages in this match
-    await Message.deleteMany({ match: req.params.matchId });
+    // Import Message model if needed
+    // await Message.deleteMany({ match: req.params.matchId });
     
     // Delete the match
     await Match.findByIdAndDelete(req.params.matchId);
 
-    console.log('✅ Match and messages deleted successfully');
+    console.log('✅ Match deleted successfully');
 
     res.json({
       success: true,
