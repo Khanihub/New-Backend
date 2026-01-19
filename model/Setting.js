@@ -4,10 +4,12 @@ const userSchema = new mongoose.Schema({
   name: String,
   email: { type: String, unique: true },
   password: String,
-
+  
   phone: String,
   dateOfBirth: String,
   gender: String,
+
+  isActive: { type: Boolean, default: true },  // 👈 NEW - for deactivation
 
   privacySettings: {
     showProfile: { type: Boolean, default: true },

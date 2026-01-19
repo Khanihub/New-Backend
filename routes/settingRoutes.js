@@ -5,7 +5,9 @@ import {
   updateProfile,
   changePassword,
   updatePrivacy,
-  updateNotifications
+  updateNotifications,
+  deleteAccount,      // NEW
+  deactivateAccount   // NEW
 } from "../controllers/settingController.js";
 
 const router = express.Router();
@@ -15,5 +17,7 @@ router.put("/profile", protect, updateProfile);
 router.put("/password", protect, changePassword);
 router.put("/privacy", protect, updatePrivacy);
 router.put("/notifications", protect, updateNotifications);
+router.delete("/delete", protect, deleteAccount);          // NEW
+router.put("/deactivate", protect, deactivateAccount);     // NEW
 
 export default router;
