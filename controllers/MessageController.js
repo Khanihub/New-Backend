@@ -223,3 +223,45 @@ export const sendMessage = async (req, res) => {
     })
   }
 }
+
+export const deleteMessage = async (req, res) => {
+  try {
+    console.log('=== DELETE MESSAGE ===');
+    console.log('Message ID:', req.params.messageId);
+    console.log('User ID:', req.user.id);
+
+    const message = await Message.findById(req.params.messageId);
+
+    if (!message) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Message not found' 
+      });
+    }
+
+    // Only sender can delete their message
+    if (message.sender.toString() !== req.user.id) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'You can only delete your own messages' 
+      });
+    }
+
+    await Message.findByIdAndDelete(req.params.messageId);
+
+    console.log('✅ Message deleted successfully');
+
+    res.json({
+      success: true,
+      message: 'Message deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete message error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error deleting message',
+      error: error.message 
+    });
+  }
+};
