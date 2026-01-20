@@ -1,5 +1,3 @@
-// MatchController.js - FIXED VERSION WITH PROPER IMAGE URLS
-
 import Match from "../model/Match.js";
 import User from "../model/User.js";
 import Profile from "../model/Profile.js";
@@ -7,11 +5,8 @@ import Profile from "../model/Profile.js";
 // Helper function to get correct image URL
 const getImageUrl = (imagePath) => {
   if (!imagePath) return 'https://i.pravatar.cc/400?img=1';
-  
-  // If it's already a full URL, return it
   if (imagePath.startsWith('http')) return imagePath;
   
-  // Determine base URL - prioritize environment variables
   const baseUrl = process.env.BACKEND_URL 
     || (process.env.RAILWAY_PUBLIC_DOMAIN 
       ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
@@ -19,9 +14,7 @@ const getImageUrl = (imagePath) => {
         ? 'https://new-backend-production-766f.up.railway.app'
         : 'http://localhost:5000');
   
-  // Ensure imagePath starts with /
   const path = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
-  
   return `${baseUrl}${path}`;
 };
 
@@ -53,38 +46,125 @@ export const getMyMatches = async (req, res) => {
   }
 };
 
+// ⭐ NEW: Get friends (mutual interests) for current user
+export const getFriends = async (req, res) => {
+  try {
+    console.log('=== GET FRIENDS ===');
+    console.log('User ID:', req.user.id);
+    
+    const currentUserId = req.user.id;
+
+    // Find matches where BOTH users sent interest (mutual match = friends)
+    const matches = await Match.find({
+      users: currentUserId,
+      $expr: { $eq: [{ $size: "$interestSentBy" }, 2] } // Both users sent interest
+    });
+
+    console.log('Found mutual matches (friends):', matches.length);
+
+    // Get friend profiles
+    const friendProfiles = [];
+    
+    for (const match of matches) {
+      const friendUserId = match.users.find(id => id.toString() !== currentUserId.toString());
+      const profile = await Profile.findOne({ user: friendUserId }).populate('user', 'email');
+      
+      if (profile) {
+        friendProfiles.push({
+          id: profile._id,
+          userId: profile.user._id,
+          matchId: match._id, // ⭐ Include matchId for messaging
+          name: profile.fullName,
+          age: profile.age,
+          profession: profile.profession || 'Not specified',
+          location: profile.city || 'Location not specified',
+          education: profile.education || 'Not specified',
+          religion: profile.isMuslim ? 'Muslim' : 'Not specified',
+          height: profile.height ? `${profile.height} cm` : 'Not specified',
+          maritalStatus: 'Never Married',
+          about: profile.about || 'No description provided',
+          interests: profile.interests ? 
+            (Array.isArray(profile.interests) ? profile.interests : 
+             profile.interests.split(',').map(i => i.trim())) : [],
+          image: getImageUrl(profile.image),
+          verified: true,
+          online: false,
+          isFriend: true // ⭐ Mark as friend
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      count: friendProfiles.length,
+      friends: friendProfiles
+    });
+
+  } catch (error) {
+    console.error('Get friends error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching friends', 
+      error: error.message 
+    });
+  }
+};
+
 // Send interest to another user
 export const sendInterest = async (req, res) => {
   const senderId = req.user.id;
   const receiverId = req.params.userId;
 
   try {
+    console.log('=== SEND INTEREST ===');
+    console.log('From:', senderId);
+    console.log('To:', receiverId);
+
     let match = await Match.findOne({
       users: { $all: [senderId, receiverId] }
     });
 
     if (!match) {
+      // Create new match
       match = await Match.create({
         users: [senderId, receiverId],
         interestSentBy: [senderId],
       });
+      console.log('✅ New match created');
     } else if (!match.interestSentBy.includes(senderId)) {
+      // Add sender to interestSentBy
       match.interestSentBy.push(senderId);
       await match.save();
+      console.log('✅ Interest added to existing match');
+    } else {
+      console.log('⚠️ Interest already sent');
     }
+
     await match.populate("users", "name age image profession city");
 
+    // Check if mutual (both sent interest)
+    const isMutual = match.interestSentBy.length === 2;
+
     res.json({
-      ...match.toObject(),
-      interestSent: match.interestSentBy.includes(senderId)
+      success: true,
+      match: {
+        ...match.toObject(),
+        interestSent: true,
+        isMutual: isMutual,
+        status: isMutual ? 'friends' : 'pending'
+      },
+      message: isMutual ? 'You are now friends!' : 'Interest sent successfully'
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: err.message });
+    console.error('Send interest error:', err);
+    res.status(500).json({ 
+      success: false,
+      message: err.message 
+    });
   }
 };
 
-// Get potential matches to browse
+// Get potential matches to browse (EXCLUDE FRIENDS)
 export const getBrowseMatches = async (req, res) => {
   try {
     console.log('=== GET BROWSE MATCHES ===');
@@ -103,35 +183,41 @@ export const getBrowseMatches = async (req, res) => {
       });
     }
 
-    console.log('Current user profile:', {
-      gender: currentUserProfile.gender,
-      preference: currentUserProfile.genderPreference || 'opposite'
+    // ⭐ Get all friends (mutual interests) to exclude them
+    const friendMatches = await Match.find({
+      users: currentUserId,
+      $expr: { $eq: [{ $size: "$interestSentBy" }, 2] }
     });
+    
+    const friendUserIds = friendMatches.map(match => 
+      match.users.find(id => id.toString() !== currentUserId.toString())
+    );
 
-    // Build filter to exclude current user
+    console.log('Friends to exclude:', friendUserIds.length);
+
+    // Build filter to exclude current user AND friends
     const filter = {
-      user: { $ne: currentUserId }
+      user: { 
+        $ne: currentUserId,
+        $nin: friendUserIds // ⭐ Exclude friends from browse matches
+      }
     };
 
     // Apply gender filter based on preference
     const preference = currentUserProfile.genderPreference || 'opposite';
     
     if (preference === 'opposite') {
-      // Show opposite gender only
       if (currentUserProfile.gender === 'male') {
         filter.gender = 'female';
       } else if (currentUserProfile.gender === 'female') {
         filter.gender = 'male';
       }
     } else if (preference === 'same') {
-      // Show same gender only
       filter.gender = currentUserProfile.gender;
     }
-    // If preference is 'all', don't add gender filter (show everyone)
 
     console.log('Filter:', filter);
 
-    // Get all matching profiles
     const profiles = await Profile.find(filter)
       .populate('user', 'email')
       .limit(100)
@@ -139,31 +225,46 @@ export const getBrowseMatches = async (req, res) => {
 
     console.log('Found profiles:', profiles.length);
 
-    // Format for frontend with proper image URLs
-const formattedMatches = profiles
-  .filter(profile => profile.user) // remove profiles without a user
-  .map(profile => ({
-    id: profile._id,
-    userId: profile.user._id,
-    name: profile.fullName,
-    age: profile.age,
-    profession: profile.profession || 'Not specified',
-    location: profile.city || 'Location not specified',
-    education: profile.education || 'Not specified',
-    religion: profile.isMuslim ? 'Muslim' : 'Not specified',
-    height: profile.height ? `${profile.height} cm` : 'Not specified',
-    maritalStatus: 'Never Married',
-    about: profile.about || 'No description provided',
-    interests: profile.interests ? 
-      (Array.isArray(profile.interests) ? profile.interests : 
-       profile.interests.split(',').map(i => i.trim())) : [],
-    image: getImageUrl(profile.image),
-    verified: true,
-    online: false,
-  }));
+    // ⭐ Check interest status for each profile
+    const formattedMatches = await Promise.all(
+      profiles
+        .filter(profile => profile.user)
+        .map(async (profile) => {
+          // Check if current user sent interest to this profile
+          const existingMatch = await Match.findOne({
+            users: { $all: [currentUserId, profile.user._id] }
+          });
+
+          const interestSent = existingMatch?.interestSentBy.includes(currentUserId) || false;
+          const isMutual = existingMatch?.interestSentBy.length === 2 || false;
+
+          return {
+            id: profile._id,
+            userId: profile.user._id,
+            matchId: existingMatch?._id || null,
+            name: profile.fullName,
+            age: profile.age,
+            profession: profile.profession || 'Not specified',
+            location: profile.city || 'Location not specified',
+            education: profile.education || 'Not specified',
+            religion: profile.isMuslim ? 'Muslim' : 'Not specified',
+            height: profile.height ? `${profile.height} cm` : 'Not specified',
+            maritalStatus: 'Never Married',
+            about: profile.about || 'No description provided',
+            interests: profile.interests ? 
+              (Array.isArray(profile.interests) ? profile.interests : 
+               profile.interests.split(',').map(i => i.trim())) : [],
+            image: getImageUrl(profile.image),
+            verified: true,
+            online: false,
+            interestSent: interestSent, // ⭐ Interest status
+            isMutual: isMutual,
+            status: isMutual ? 'friends' : (interestSent ? 'pending' : 'none')
+          };
+        })
+    );
 
     console.log('Returning matches:', formattedMatches.length);
-    console.log('Sample image URL:', formattedMatches[0]?.image);
 
     res.status(200).json({
       success: true,
@@ -182,7 +283,7 @@ const formattedMatches = profiles
   }
 };
 
-// Get filtered browse matches
+// Get filtered browse matches (EXCLUDE FRIENDS)
 export const getFilteredBrowseMatches = async (req, res) => {
   try {
     console.log('=== GET FILTERED BROWSE MATCHES ===');
@@ -198,13 +299,25 @@ export const getFilteredBrowseMatches = async (req, res) => {
       });
     }
 
+    // ⭐ Get friends to exclude
+    const friendMatches = await Match.find({
+      users: currentUserId,
+      $expr: { $eq: [{ $size: "$interestSentBy" }, 2] }
+    });
+    
+    const friendUserIds = friendMatches.map(match => 
+      match.users.find(id => id.toString() !== currentUserId.toString())
+    );
+
     const filter = {
-      user: { $ne: currentUserId }
+      user: { 
+        $ne: currentUserId,
+        $nin: friendUserIds // ⭐ Exclude friends
+      }
     };
 
-    // Apply gender filter based on preference
+    // Apply gender filter
     const preference = currentUserProfile.genderPreference || 'opposite';
-    
     if (preference === 'opposite') {
       if (currentUserProfile.gender === 'male') {
         filter.gender = 'female';
@@ -214,7 +327,6 @@ export const getFilteredBrowseMatches = async (req, res) => {
     } else if (preference === 'same') {
       filter.gender = currentUserProfile.gender;
     }
-    // If 'all', no gender filter
 
     // Age filter
     if (minAge || maxAge) {
@@ -243,32 +355,48 @@ export const getFilteredBrowseMatches = async (req, res) => {
       filter.profession = { $regex: profession, $options: 'i' };
     }
 
-    console.log('Filter applied:', filter);
-
     const profiles = await Profile.find(filter)
       .populate('user', 'email')
       .limit(100)
       .sort({ createdAt: -1 });
 
-    const formattedMatches = profiles.map(profile => ({
-      id: profile._id,
-      userId: profile.user._id,
-      name: profile.fullName,
-      age: profile.age,
-      profession: profile.profession || 'Not specified',
-      location: profile.city || 'Location not specified',
-      education: profile.education || 'Not specified',
-      religion: profile.isMuslim ? 'Muslim' : 'Not specified',
-      height: profile.height ? `${profile.height} cm` : 'Not specified',
-      maritalStatus: 'Never Married',
-      about: profile.about || 'No description provided',
-      interests: profile.interests ? 
-        (Array.isArray(profile.interests) ? profile.interests : 
-         profile.interests.split(',').map(i => i.trim())) : [],
-      image: getImageUrl(profile.image),
-      verified: true,
-      online: false,
-    }));
+    // ⭐ Check interest status
+    const formattedMatches = await Promise.all(
+      profiles
+        .filter(profile => profile.user)
+        .map(async (profile) => {
+          const existingMatch = await Match.findOne({
+            users: { $all: [currentUserId, profile.user._id] }
+          });
+
+          const interestSent = existingMatch?.interestSentBy.includes(currentUserId) || false;
+          const isMutual = existingMatch?.interestSentBy.length === 2 || false;
+
+          return {
+            id: profile._id,
+            userId: profile.user._id,
+            matchId: existingMatch?._id || null,
+            name: profile.fullName,
+            age: profile.age,
+            profession: profile.profession || 'Not specified',
+            location: profile.city || 'Location not specified',
+            education: profile.education || 'Not specified',
+            religion: profile.isMuslim ? 'Muslim' : 'Not specified',
+            height: profile.height ? `${profile.height} cm` : 'Not specified',
+            maritalStatus: 'Never Married',
+            about: profile.about || 'No description provided',
+            interests: profile.interests ? 
+              (Array.isArray(profile.interests) ? profile.interests : 
+               profile.interests.split(',').map(i => i.trim())) : [],
+            image: getImageUrl(profile.image),
+            verified: true,
+            online: false,
+            interestSent: interestSent,
+            isMutual: isMutual,
+            status: isMutual ? 'friends' : (interestSent ? 'pending' : 'none')
+          };
+        })
+    );
 
     res.status(200).json({
       success: true,
@@ -310,6 +438,7 @@ export const deleteMatch = async (req, res) => {
     }
 
     // Delete all messages in this match
+    const Message = (await import("../model/Message.js")).default;
     await Message.deleteMany({ match: req.params.matchId });
     
     // Delete the match
