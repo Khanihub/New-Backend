@@ -1,5 +1,5 @@
 import Match from "../model/Match.js";
-import Interest from "../model/Interest.js"; // ⭐ ADD THIS
+import Interest from "../model/Interest.js";
 import User from "../model/User.js";
 import Profile from "../model/Profile.js";
 
@@ -141,7 +141,7 @@ export const getFriends = async (req, res) => {
   }
 };
 
-// ⭐ Send interest - UPDATED to create both Match AND Interest
+// ⭐⭐⭐ FIXED: Send interest - Creates BOTH Match AND Interest with proper notification
 export const sendInterest = async (req, res) => {
   const senderId = req.user.id;
   const receiverId = req.params.userId;
@@ -172,6 +172,8 @@ export const sendInterest = async (req, res) => {
         status: 'pending'
       });
       console.log('✅ Interest created for notifications:', interest._id);
+    } else {
+      console.log('⚠️ Interest already exists:', interest._id);
     }
 
     // ⭐ STEP 2: Check/Create Match document (for matching system)
@@ -190,7 +192,7 @@ export const sendInterest = async (req, res) => {
       await match.save();
       console.log('✅ Interest added to existing match');
       
-      // ⭐ Check if this makes it mutual (both sent interest)
+      // ⭐ CRITICAL FIX: Check if this makes it mutual (both sent interest)
       if (match.interestSentBy.length === 2) {
         // Update BOTH interest documents to "accepted"
         await Interest.updateMany(
@@ -202,9 +204,10 @@ export const sendInterest = async (req, res) => {
           },
           { status: 'accepted' }
         );
-        console.log('✅ Both interests marked as accepted (mutual)');
+        console.log('✅ Both interests marked as accepted (mutual match)');
       }
     } else {
+      // Interest already sent by this user
       return res.json({
         success: true,
         match: {
@@ -229,6 +232,7 @@ export const sendInterest = async (req, res) => {
         isMutual: isMutual,
         status: isMutual ? 'friends' : 'pending'
       },
+      interest: interest, // ⭐ Also return the interest for frontend tracking
       message: isMutual ? 'You are now friends! 💝' : 'Interest sent successfully! ⏳'
     });
   } catch (err) {
