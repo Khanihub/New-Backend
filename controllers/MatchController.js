@@ -1,4 +1,5 @@
 import Match from "../model/Match.js";
+import Interest from "../model/Interest.js"; // ⭐ ADD THIS
 import User from "../model/User.js";
 import Profile from "../model/Profile.js";
 
@@ -140,7 +141,7 @@ export const getFriends = async (req, res) => {
   }
 };
 
-// Send interest
+// ⭐ Send interest - UPDATED to create both Match AND Interest
 export const sendInterest = async (req, res) => {
   const senderId = req.user.id;
   const receiverId = req.params.userId;
@@ -157,6 +158,23 @@ export const sendInterest = async (req, res) => {
       });
     }
 
+    // ⭐ STEP 1: Check/Create Interest document (for notifications)
+    let interest = await Interest.findOne({
+      from: senderId,
+      to: receiverId
+    });
+
+    if (!interest) {
+      // Create new interest for notification system
+      interest = await Interest.create({
+        from: senderId,
+        to: receiverId,
+        status: 'pending'
+      });
+      console.log('✅ Interest created for notifications:', interest._id);
+    }
+
+    // ⭐ STEP 2: Check/Create Match document (for matching system)
     let match = await Match.findOne({
       users: { $all: [senderId, receiverId] }
     });
@@ -170,7 +188,22 @@ export const sendInterest = async (req, res) => {
     } else if (!match.interestSentBy.includes(senderId)) {
       match.interestSentBy.push(senderId);
       await match.save();
-      console.log('✅ Interest added');
+      console.log('✅ Interest added to existing match');
+      
+      // ⭐ Check if this makes it mutual (both sent interest)
+      if (match.interestSentBy.length === 2) {
+        // Update BOTH interest documents to "accepted"
+        await Interest.updateMany(
+          {
+            $or: [
+              { from: senderId, to: receiverId },
+              { from: receiverId, to: senderId }
+            ]
+          },
+          { status: 'accepted' }
+        );
+        console.log('✅ Both interests marked as accepted (mutual)');
+      }
     } else {
       return res.json({
         success: true,
