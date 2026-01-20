@@ -140,25 +140,27 @@ export const getBrowseMatches = async (req, res) => {
     console.log('Found profiles:', profiles.length);
 
     // Format for frontend with proper image URLs
-    const formattedMatches = profiles.map(profile => ({
-      id: profile._id,
-      userId: profile.user._id,
-      name: profile.fullName,
-      age: profile.age,
-      profession: profile.profession || 'Not specified',
-      location: profile.city || 'Location not specified',
-      education: profile.education || 'Not specified',
-      religion: profile.isMuslim ? 'Muslim' : 'Not specified',
-      height: profile.height ? `${profile.height} cm` : 'Not specified',
-      maritalStatus: 'Never Married',
-      about: profile.about || 'No description provided',
-      interests: profile.interests ? 
-        (Array.isArray(profile.interests) ? profile.interests : 
-         profile.interests.split(',').map(i => i.trim())) : [],
-      image: getImageUrl(profile.image),
-      verified: true,
-      online: false,
-    }));
+const formattedMatches = profiles
+  .filter(profile => profile.user) // remove profiles without a user
+  .map(profile => ({
+    id: profile._id,
+    userId: profile.user._id,
+    name: profile.fullName,
+    age: profile.age,
+    profession: profile.profession || 'Not specified',
+    location: profile.city || 'Location not specified',
+    education: profile.education || 'Not specified',
+    religion: profile.isMuslim ? 'Muslim' : 'Not specified',
+    height: profile.height ? `${profile.height} cm` : 'Not specified',
+    maritalStatus: 'Never Married',
+    about: profile.about || 'No description provided',
+    interests: profile.interests ? 
+      (Array.isArray(profile.interests) ? profile.interests : 
+       profile.interests.split(',').map(i => i.trim())) : [],
+    image: getImageUrl(profile.image),
+    verified: true,
+    online: false,
+  }));
 
     console.log('Returning matches:', formattedMatches.length);
     console.log('Sample image URL:', formattedMatches[0]?.image);
