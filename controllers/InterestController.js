@@ -5,8 +5,16 @@ import Match from "../model/Match.js";
 import Profile from "../model/Profile.js";
 
 // Helper function to get correct image URL
-const getImageUrl = (imagePath) => {
-  if (!imagePath) return 'https://i.pravatar.cc/400?img=1';
+const getImageUrl = (imagePath, gender = null) => {
+  // If no image path provided, return gender-based default
+  if (!imagePath) {
+    if (gender === 'male') {
+      return '/assets/Male Pic.png';
+    } else if (gender === 'female') {
+      return '/assets/female pic.png';
+    }
+    return '/assets/default-avatar.png';
+  }
   
   if (imagePath.startsWith('http')) return imagePath;
   
@@ -18,7 +26,6 @@ const getImageUrl = (imagePath) => {
         : 'http://localhost:5000');
   
   const path = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
-  
   return `${baseUrl}${path}`;
 };
 

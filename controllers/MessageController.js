@@ -3,20 +3,29 @@ import Match from "../model/Match.js"
 import Profile from "../model/Profile.js"
 
 // Helper function to get correct image URL
-const getImageUrl = (imagePath) => {
-  if (!imagePath) return 'https://i.pravatar.cc/400?img=1'
-  if (imagePath.startsWith('http')) return imagePath
+const getImageUrl = (imagePath, gender = null) => {
+  // If no image path provided, return gender-based default
+  if (!imagePath) {
+    if (gender === 'male') {
+      return '/assets/Male Pic.png';
+    } else if (gender === 'female') {
+      return '/assets/female pic.png';
+    }
+    return '/assets/default-avatar.png';
+  }
+  
+  if (imagePath.startsWith('http')) return imagePath;
   
   const baseUrl = process.env.BACKEND_URL 
     || (process.env.RAILWAY_PUBLIC_DOMAIN 
       ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
       : process.env.NODE_ENV === 'production'
         ? 'https://new-backend-production-766f.up.railway.app'
-        : 'http://localhost:5000')
+        : 'http://localhost:5000');
   
-  const path = imagePath.startsWith('/') ? imagePath : `/${imagePath}`
-  return `${baseUrl}${path}`
-}
+  const path = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+  return `${baseUrl}${path}`;
+};
 
 // GET CONVERSATIONS
 export const getConversations = async (req, res) => {
