@@ -514,6 +514,65 @@ export const getFilteredBrowseMatches = async (req, res) => {
   }
 };
 
+// ⭐ NEW: Cancel interest by userId - Simplified version
+export const cancelInterestByUserId = async (req, res) => {
+  try {
+    console.log('=== CANCEL INTEREST BY USER ID ===');
+    console.log('Target User ID:', req.params.userId);
+    console.log('Current User ID:', req.user.id);
+
+    const senderId = req.user.id;
+    const receiverId = req.params.userId;
+
+    // STEP 1: Find and delete the Interest document
+    const interest = await Interest.findOneAndDelete({
+      from: senderId,
+      to: receiverId,
+      status: 'pending' // Only delete pending interests
+    });
+
+    if (interest) {
+      console.log('✅ Interest deleted:', interest._id);
+    } else {
+      console.log('⚠️ No pending interest found');
+    }
+
+    // STEP 2: Find and update the Match document
+    const match = await Match.findOne({
+      users: { $all: [senderId, receiverId] }
+    });
+
+    if (match) {
+      // Remove sender from interestSentBy array
+      match.interestSentBy = match.interestSentBy.filter(
+        userId => userId.toString() !== senderId
+      );
+
+      // If no interests left, delete the match
+      if (match.interestSentBy.length === 0) {
+        await Match.findByIdAndDelete(match._id);
+        console.log('✅ Match deleted (no interests left)');
+      } else {
+        await match.save();
+        console.log('✅ Interest removed from match');
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Request cancelled successfully'
+    });
+
+  } catch (error) {
+    console.error('Cancel interest error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error cancelling request',
+      error: error.message
+    });
+  }
+};
+
 // ⭐ NEW: Unfriend - Remove friend connection
 export const unfriend = async (req, res) => {
   try {

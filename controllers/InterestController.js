@@ -254,27 +254,29 @@ export const getNotifications = async (req, res) => {
 
     // Format notifications with profile info
     const notifications = await Promise.all(
-      interests.map(async (interest) => {
-        const fromProfile = await Profile.findOne({ user: interest.from._id });
+      interests
+        .filter(interest => interest.from) // ⭐ Filter out interests where sender was deleted
+        .map(async (interest) => {
+          const fromProfile = await Profile.findOne({ user: interest.from._id });
 
-        return {
-          _id: interest._id,
-          type: 'interest',
-          status: interest.status,
-          from: {
-            _id: interest.from._id,
-            name: fromProfile?.fullName || interest.from.name || 'Unknown',
-            email: interest.from.email,
-            image: getImageUrl(fromProfile?.image),
-            age: fromProfile?.age,
-            city: fromProfile?.city,
-            profession: fromProfile?.profession
-          },
-          message: `${fromProfile?.fullName || interest.from.name} sent you an interest`,
-          createdAt: interest.createdAt,
-          read: interest.status !== 'pending' // Mark as read if already accepted/rejected
-        };
-      })
+          return {
+            _id: interest._id,
+            type: 'interest',
+            status: interest.status,
+            from: {
+              _id: interest.from._id,
+              name: fromProfile?.fullName || interest.from.name || 'Unknown',
+              email: interest.from.email,
+              image: getImageUrl(fromProfile?.image),
+              age: fromProfile?.age,
+              city: fromProfile?.city,
+              profession: fromProfile?.profession
+            },
+            message: `${fromProfile?.fullName || interest.from.name} sent you an interest`,
+            createdAt: interest.createdAt,
+            read: interest.status !== 'pending' // Mark as read if already accepted/rejected
+          };
+        })
     );
 
     // Count unread (pending) notifications
@@ -332,26 +334,30 @@ export const getSentInterests = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    console.log('Found sent interests:', interests.length);
+
     // Format with profile info
     const formatted = await Promise.all(
-      interests.map(async (interest) => {
-        const toProfile = await Profile.findOne({ user: interest.to._id });
+      interests
+        .filter(interest => interest.to) // ⭐ Filter out interests where user was deleted
+        .map(async (interest) => {
+          const toProfile = await Profile.findOne({ user: interest.to._id });
 
-        return {
-          _id: interest._id,
-          status: interest.status,
-          to: {
-            _id: interest.to._id,
-            name: toProfile?.fullName || interest.to.name || 'Unknown',
-            email: interest.to.email,
-            image: getImageUrl(toProfile?.image),
-            age: toProfile?.age,
-            city: toProfile?.city,
-            profession: toProfile?.profession
-          },
-          createdAt: interest.createdAt
-        };
-      })
+          return {
+            _id: interest._id,
+            status: interest.status,
+            to: {
+              _id: interest.to._id,
+              name: toProfile?.fullName || interest.to.name || 'Unknown',
+              email: interest.to.email,
+              image: getImageUrl(toProfile?.image),
+              age: toProfile?.age,
+              city: toProfile?.city,
+              profession: toProfile?.profession
+            },
+            createdAt: interest.createdAt
+          };
+        })
     );
 
     res.json({
