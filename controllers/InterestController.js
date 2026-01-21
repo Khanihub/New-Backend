@@ -267,7 +267,7 @@ export const getNotifications = async (req, res) => {
               _id: interest.from._id,
               name: fromProfile?.fullName || interest.from.name || 'Unknown',
               email: interest.from.email,
-              image: getImageUrl(fromProfile?.image),
+              image: getImageUrl(fromProfile?.image, fromProfile?.gender),
               age: fromProfile?.age,
               city: fromProfile?.city,
               profession: fromProfile?.profession
@@ -350,7 +350,7 @@ export const getSentInterests = async (req, res) => {
               _id: interest.to._id,
               name: toProfile?.fullName || interest.to.name || 'Unknown',
               email: interest.to.email,
-              image: getImageUrl(toProfile?.image),
+              image: getImageUrl(toProfile?.image, toProfile?.gender),
               age: toProfile?.age,
               city: toProfile?.city,
               profession: toProfile?.profession

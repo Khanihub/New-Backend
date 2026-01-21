@@ -4,8 +4,17 @@ import User from "../model/User.js";
 import Profile from "../model/Profile.js";
 
 // Helper function to get correct image URL
-const getImageUrl = (imagePath) => {
-  if (!imagePath) return 'https://i.pravatar.cc/400?img=1';
+const getImageUrl = (imagePath, gender = null) => {
+  // If no image path provided, return gender-based default
+  if (!imagePath) {
+    if (gender === 'male') {
+      return '/assets/Male Pic.png';
+    } else if (gender === 'female') {
+      return '/assets/female pic.png';
+    }
+    return '/assets/default-avatar.png';
+  }
+  
   if (imagePath.startsWith('http')) return imagePath;
   
   const baseUrl = process.env.BACKEND_URL 
@@ -53,7 +62,7 @@ export const getFriendRequests = async (req, res) => {
             age: profile.age,
             profession: profile.profession || 'Not specified',
             location: profile.city || 'Location not specified',
-            image: getImageUrl(profile.image),
+            image: getImageUrl(profile.image, profile.gender),
             sentAt: match.createdAt
           });
         }
@@ -115,7 +124,7 @@ export const getFriends = async (req, res) => {
           interests: profile.interests ? 
             (Array.isArray(profile.interests) ? profile.interests : 
              profile.interests.split(',').map(i => i.trim())) : [],
-          image: getImageUrl(profile.image),
+          image: getImageUrl(profile.image, profile.gender),
           verified: true,
           online: false,
           isFriend: true
@@ -380,7 +389,7 @@ export const getBrowseMatches = async (req, res) => {
             interests: profile.interests ? 
               (Array.isArray(profile.interests) ? profile.interests : 
                profile.interests.split(',').map(i => i.trim())) : [],
-            image: getImageUrl(profile.image),
+            image: getImageUrl(profile.image, profile.gender),
             verified: true,
             online: false,
             interestSent: interestSent,
@@ -499,7 +508,7 @@ export const getFilteredBrowseMatches = async (req, res) => {
           interests: profile.interests ? 
             (Array.isArray(profile.interests) ? profile.interests : 
              profile.interests.split(',').map(i => i.trim())) : [],
-          image: getImageUrl(profile.image),
+          image: getImageUrl(profile.image, profile.gender),
           verified: true,
           online: false,
           interestSent, isMutual,

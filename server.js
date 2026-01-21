@@ -64,7 +64,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ⭐ UPDATED: Serve static files with proper path resolution
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // ⭐ Optional: Add logging for upload requests (for debugging)
 app.use('/uploads', (req, res, next) => {

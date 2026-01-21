@@ -1,5 +1,3 @@
-// ProfileController.js - FIXED VERSION WITH PROPER IMAGE URLS
-
 import Profile from "../model/Profile.js";
 
 // Helper function to get correct image URL
