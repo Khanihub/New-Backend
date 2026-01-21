@@ -1,11 +1,10 @@
-// intrestRoutes.js - COMPLETE VERSION WITH NOTIFICATIONS
-
 import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import { 
   sendInterest, 
   acceptInterest,
   rejectInterest,
+  deleteInterest, 
   getNotifications,
   getUnreadCount,
   getSentInterests,
@@ -20,6 +19,7 @@ const router = express.Router();
 router.post("/", protect, sendInterest);
 router.put("/:id/accept", protect, acceptInterest);
 router.put("/:id/reject", protect, rejectInterest);
+router.delete("/:id", protect, deleteInterest); 
 
 // Notification routes
 router.get("/notifications", protect, getNotifications);

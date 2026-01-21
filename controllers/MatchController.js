@@ -244,6 +244,66 @@ export const sendInterest = async (req, res) => {
   }
 };
 
+// ⭐ NEW: Remove interest from match (for canceling requests)
+export const removeInterestFromMatch = async (req, res) => {
+  try {
+    console.log('=== REMOVE INTEREST FROM MATCH ===');
+    console.log('Match ID:', req.params.matchId);
+    console.log('User ID:', req.user.id);
+
+    const match = await Match.findById(req.params.matchId);
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found'
+      });
+    }
+
+    // Check if user is part of this match
+    if (!match.users.includes(req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized'
+      });
+    }
+
+    // Remove user from interestSentBy array
+    match.interestSentBy = match.interestSentBy.filter(
+      userId => userId.toString() !== req.user.id
+    );
+
+    // If no one has sent interest anymore, delete the match
+    if (match.interestSentBy.length === 0) {
+      await Match.findByIdAndDelete(req.params.matchId);
+      console.log('✅ Match deleted (no interests left)');
+      
+      return res.json({
+        success: true,
+        message: 'Request cancelled and match deleted'
+      });
+    }
+
+    // Otherwise, just update the match
+    await match.save();
+    console.log('✅ Interest removed from match');
+
+    res.json({
+      success: true,
+      message: 'Interest removed from match',
+      match
+    });
+
+  } catch (error) {
+    console.error('Remove interest error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error removing interest',
+      error: error.message
+    });
+  }
+};
+
 // Get browse matches
 export const getBrowseMatches = async (req, res) => {
   try {

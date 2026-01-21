@@ -1,4 +1,4 @@
-// InterestController.js - COMPLETE VERSION WITH NOTIFICATIONS
+// InterestController.js - COMPLETE VERSION WITH NOTIFICATIONS + DELETE
 
 import Interest from "../model/Interest.js";
 import Match from "../model/Match.js";
@@ -118,14 +118,19 @@ export const acceptInterest = async (req, res) => {
     });
 
     if (!match) {
-      // CREATE NEW MATCH
+      // CREATE NEW MATCH with BOTH users in interestSentBy (mutual)
       match = await Match.create({
         users: [interest.from, interest.to],
-        interestSentBy: [interest.from]
+        interestSentBy: [interest.from, interest.to] // ⭐ Both users now
       });
-      console.log('Match created:', match._id);
+      console.log('✅ Mutual match created:', match._id);
     } else {
-      console.log('Match already exists:', match._id);
+      // Add receiver to interestSentBy if not already there
+      if (!match.interestSentBy.includes(interest.to)) {
+        match.interestSentBy.push(interest.to);
+        await match.save();
+        console.log('✅ Match updated to mutual');
+      }
     }
 
     res.json({
@@ -181,6 +186,49 @@ export const rejectInterest = async (req, res) => {
     res.status(500).json({ 
       success: false,
       message: "Error rejecting interest",
+      error: error.message 
+    });
+  }
+};
+
+// ⭐ NEW: DELETE/CANCEL INTEREST
+export const deleteInterest = async (req, res) => {
+  try {
+    console.log('=== DELETE INTEREST ===');
+    console.log('Interest ID:', req.params.id);
+    console.log('User ID:', req.user.id);
+
+    const interest = await Interest.findById(req.params.id);
+
+    if (!interest) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Interest not found" 
+      });
+    }
+
+    // Only the sender can delete their interest
+    if (interest.from.toString() !== req.user.id) {
+      return res.status(403).json({ 
+        success: false,
+        message: "Not authorized to delete this interest" 
+      });
+    }
+
+    await Interest.findByIdAndDelete(req.params.id);
+
+    console.log('✅ Interest deleted');
+
+    res.json({
+      success: true,
+      message: "Interest cancelled successfully"
+    });
+
+  } catch (error) {
+    console.error('Delete interest error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Error deleting interest",
       error: error.message 
     });
   }
