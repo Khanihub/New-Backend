@@ -11,7 +11,7 @@ const getImageUrl = (imagePath, gender = null) => {
     if (gender === 'male') {
       return '/assets/Male Pic.png';
     } else if (gender === 'female') {
-      return '/assets/female pic.png';
+      return '/assets/Female pic.png';
     }
     return '/assets/default-avatar.png';
   }
