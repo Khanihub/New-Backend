@@ -514,6 +514,71 @@ export const getFilteredBrowseMatches = async (req, res) => {
   }
 };
 
+// ⭐ NEW: Unfriend - Remove friend connection
+export const unfriend = async (req, res) => {
+  try {
+    console.log('=== UNFRIEND ===');
+    console.log('Match ID:', req.params.matchId);
+    console.log('User ID:', req.user.id);
+
+    const match = await Match.findById(req.params.matchId);
+
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found'
+      });
+    }
+
+    // Check if user is part of this match
+    if (!match.users.includes(req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized'
+      });
+    }
+
+    // Get the other user's ID
+    const otherUserId = match.users.find(
+      id => id.toString() !== req.user.id
+    );
+
+    // Delete all messages in this conversation
+    const Message = (await import("../model/Message.js")).default;
+    await Message.deleteMany({ match: req.params.matchId });
+    console.log('✅ Messages deleted');
+
+    // Delete the match
+    await Match.findByIdAndDelete(req.params.matchId);
+    console.log('✅ Match deleted');
+
+    // Update both interest documents to "rejected" or delete them
+    await Interest.updateMany(
+      {
+        $or: [
+          { from: req.user.id, to: otherUserId },
+          { from: otherUserId, to: req.user.id }
+        ]
+      },
+      { status: 'rejected' }
+    );
+    console.log('✅ Interests updated to rejected');
+
+    res.json({
+      success: true,
+      message: 'Friend removed successfully'
+    });
+
+  } catch (error) {
+    console.error('Unfriend error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error removing friend',
+      error: error.message
+    });
+  }
+};
+
 export const deleteMatch = async (req, res) => {
   try {
     const match = await Match.findById(req.params.matchId);
