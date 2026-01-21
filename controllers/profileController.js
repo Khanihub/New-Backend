@@ -1,13 +1,19 @@
 import Profile from "../model/Profile.js";
 
 // Helper function to get correct image URL
-const getImageUrl = (imagePath) => {
-  if (!imagePath) return null;
+const getImageUrl = (imagePath, gender = null) => {
+  // If no image path provided, return gender-based default
+  if (!imagePath) {
+    if (gender === 'male') {
+      return '/assets/Male Pic.png';
+    } else if (gender === 'female') {
+      return '/assets/Female pic.png';
+    }
+    return '/assets/default-avatar.png';
+  }
   
-  // If it's already a full URL, return it
   if (imagePath.startsWith('http')) return imagePath;
   
-  // Determine base URL - prioritize environment variables
   const baseUrl = process.env.BACKEND_URL 
     || (process.env.RAILWAY_PUBLIC_DOMAIN 
       ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
@@ -15,9 +21,7 @@ const getImageUrl = (imagePath) => {
         ? 'https://new-backend-production-766f.up.railway.app'
         : 'http://localhost:5000');
   
-  // Ensure imagePath starts with /
   const path = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
-  
   return `${baseUrl}${path}`;
 };
 
