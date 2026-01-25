@@ -39,7 +39,6 @@ app.use((req, res, next) => {
   
   // Log body for POST/PUT - but check if it exists
   if (req.method === 'POST' || req.method === 'PUT') {
-    // For multipart, body might be empty until multer processes it
     console.log('Content-Type:', req.headers['content-type']);
     if (req.body && Object.keys(req.body).length > 0) {
       console.log('Request Body:', req.body);
@@ -63,13 +62,20 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ⭐ UPDATED: Serve static files with proper path resolution
+// ⭐⭐⭐ CRITICAL: Serve static files - BOTH uploads AND assets ⭐⭐⭐
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
-// ⭐ Optional: Add logging for upload requests (for debugging)
+// ⭐ Optional: Add logging for static file requests (for debugging)
 app.use('/uploads', (req, res, next) => {
   console.log('📸 Uploads request:', req.url);
   console.log('📁 Serving from:', path.join(__dirname, 'uploads'));
+  next();
+});
+
+app.use('/assets', (req, res, next) => {
+  console.log('🎨 Assets request:', req.url);
+  console.log('📁 Serving from:', path.join(__dirname, 'assets'));
   next();
 });
 
@@ -85,20 +91,16 @@ app.use("/api/settings", settingsRoutes);
 io.on("connection", (socket) => {
   console.log("✅ New client connected:", socket.id);
 
-  // Join a chat room
   socket.on("joinChat", (matchId) => {
     socket.join(matchId);
     console.log(`👤 Socket ${socket.id} joined room ${matchId}`);
   });
 
-  // Listen for new messages
   socket.on("sendMessage", ({ matchId, message }) => {
     console.log("📤 Broadcasting message to room:", matchId);
-    // Broadcast to everyone in the room EXCEPT sender
     socket.to(matchId).emit("newMessage", message);
   });
 
-  // Listen for message deletions
   socket.on("deleteMessage", ({ matchId, messageId }) => {
     console.log("🗑️ Broadcasting deletion to room:", matchId);
     socket.to(matchId).emit("messageDeleted", { messageId });
@@ -126,6 +128,7 @@ app.get("/api/health", (req, res) => {
     message: "Server is running",
     socketio: "enabled ✅",
     uploadsPath: path.join(__dirname, 'uploads'),
+    assetsPath: path.join(__dirname, 'assets'),
     backendUrl: process.env.BACKEND_URL || process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:5000',
     nodeEnv: process.env.NODE_ENV || 'development'
   });
@@ -150,5 +153,6 @@ server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🔌 Socket.IO enabled - Real-time messaging active!`);
   console.log(`📁 Uploads directory: ${path.join(__dirname, 'uploads')}`);
+  console.log(`📁 Assets directory: ${path.join(__dirname, 'assets')}`);
   console.log(`🌐 Backend URL: ${process.env.BACKEND_URL || 'http://localhost:' + PORT}`);
 });

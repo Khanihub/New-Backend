@@ -1,10 +1,18 @@
-// ProfileController.js - FIXED VERSION WITH PROPER IMAGE URLS
-
 import Profile from "../model/Profile.js";
 
-// Helper function to get correct image URL
-const getImageUrl = (imagePath) => {
-  if (!imagePath) return null;
+// ⭐ UPDATED: Helper function with gender-based default images
+const getImageUrl = (imagePath, gender = null) => {
+  // If no image path provided, return gender-based default
+  if (!imagePath) {
+    if (gender === 'male') {
+      return '/assets/Male Pic.png';
+    } else if (gender === 'female') {
+      return '/assets/Female pic.png';
+    } else if (gender === 'other') {
+      return '/assets/default-avatar.png';
+    }
+    return '/assets/default-avatar.png'; // Fallback
+  }
   
   // If it's already a full URL, return it
   if (imagePath.startsWith('http')) return imagePath;
@@ -98,11 +106,9 @@ export const createProfile = async (req, res) => {
     const profile = await Profile.create(profileData);
     console.log('Profile created successfully:', profile._id);
     
-    // Return profile with full image URL
+    // ⭐ Return profile with full image URL (pass gender)
     const profileResponse = profile.toObject();
-    if (profileResponse.image) {
-      profileResponse.image = getImageUrl(profileResponse.image);
-    }
+    profileResponse.image = getImageUrl(profileResponse.image, profileResponse.gender);
     
     res.status(201).json({
       success: true,
@@ -214,11 +220,9 @@ export const updateProfile = async (req, res) => {
     
     console.log("Profile saved successfully:", profile._id);
     
-    // Return profile with full image URL
+    // ⭐ Return profile with full image URL (pass gender)
     const profileResponse = profile.toObject();
-    if (profileResponse.image) {
-      profileResponse.image = getImageUrl(profileResponse.image);
-    }
+    profileResponse.image = getImageUrl(profileResponse.image, profileResponse.gender);
     
     res.json({
       success: true,
@@ -271,12 +275,11 @@ export const getMyProfile = async (req, res) => {
     
     console.log("Profile found:", profile._id);
     
-    // Return profile with full image URL
+    // ⭐ Return profile with full image URL (pass gender)
     const profileResponse = profile.toObject();
-    if (profileResponse.image) {
-      profileResponse.image = getImageUrl(profileResponse.image);
-      console.log("Profile image URL:", profileResponse.image);
-    }
+    profileResponse.image = getImageUrl(profileResponse.image, profileResponse.gender);
+    console.log("Profile image URL:", profileResponse.image);
+    console.log("Profile gender:", profileResponse.gender);
     
     res.json(profileResponse);
     
@@ -303,12 +306,10 @@ export const getApprovedProfiles = async (req, res) => {
   try {
     const profiles = await Profile.find({ status: "approved" }).populate("user", "name");
     
-    // Add full image URLs to all profiles
+    // ⭐ Add full image URLs with gender to all profiles
     const profilesWithImages = profiles.map(profile => {
       const profileObj = profile.toObject();
-      if (profileObj.image) {
-        profileObj.image = getImageUrl(profileObj.image);
-      }
+      profileObj.image = getImageUrl(profileObj.image, profileObj.gender);
       return profileObj;
     });
     
@@ -329,11 +330,9 @@ export const updateProfileStatus = async (req, res) => {
 
     if (!profile) return res.status(404).json({ message: "Profile not found" });
     
-    // Return profile with full image URL
+    // ⭐ Return profile with full image URL (pass gender)
     const profileResponse = profile.toObject();
-    if (profileResponse.image) {
-      profileResponse.image = getImageUrl(profileResponse.image);
-    }
+    profileResponse.image = getImageUrl(profileResponse.image, profileResponse.gender);
     
     res.json(profileResponse);
   } catch (err) {

@@ -1,12 +1,20 @@
-// InterestController.js - COMPLETE VERSION WITH NOTIFICATIONS
+// InterestController.js - COMPLETE VERSION WITH NOTIFICATIONS + DELETE
 
 import Interest from "../model/Interest.js";
 import Match from "../model/Match.js";
 import Profile from "../model/Profile.js";
 
 // Helper function to get correct image URL
-const getImageUrl = (imagePath) => {
-  if (!imagePath) return 'https://i.pravatar.cc/400?img=1';
+const getImageUrl = (imagePath, gender = null) => {
+  // If no image path provided, return gender-based default
+  if (!imagePath) {
+    if (gender === 'male') {
+      return '/assets/Male Pic.png';
+    } else if (gender === 'female') {
+      return '/assets/Female pic.png';
+    }
+    return '/assets/default-avatar.png';
+  }
   
   if (imagePath.startsWith('http')) return imagePath;
   
@@ -18,7 +26,6 @@ const getImageUrl = (imagePath) => {
         : 'http://localhost:5000');
   
   const path = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
-  
   return `${baseUrl}${path}`;
 };
 
@@ -118,14 +125,19 @@ export const acceptInterest = async (req, res) => {
     });
 
     if (!match) {
-      // CREATE NEW MATCH
+      // CREATE NEW MATCH with BOTH users in interestSentBy (mutual)
       match = await Match.create({
         users: [interest.from, interest.to],
-        interestSentBy: [interest.from]
+        interestSentBy: [interest.from, interest.to] // ⭐ Both users now
       });
-      console.log('Match created:', match._id);
+      console.log('✅ Mutual match created:', match._id);
     } else {
-      console.log('Match already exists:', match._id);
+      // Add receiver to interestSentBy if not already there
+      if (!match.interestSentBy.includes(interest.to)) {
+        match.interestSentBy.push(interest.to);
+        await match.save();
+        console.log('✅ Match updated to mutual');
+      }
     }
 
     res.json({
@@ -186,6 +198,49 @@ export const rejectInterest = async (req, res) => {
   }
 };
 
+// ⭐ NEW: DELETE/CANCEL INTEREST
+export const deleteInterest = async (req, res) => {
+  try {
+    console.log('=== DELETE INTEREST ===');
+    console.log('Interest ID:', req.params.id);
+    console.log('User ID:', req.user.id);
+
+    const interest = await Interest.findById(req.params.id);
+
+    if (!interest) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Interest not found" 
+      });
+    }
+
+    // Only the sender can delete their interest
+    if (interest.from.toString() !== req.user.id) {
+      return res.status(403).json({ 
+        success: false,
+        message: "Not authorized to delete this interest" 
+      });
+    }
+
+    await Interest.findByIdAndDelete(req.params.id);
+
+    console.log('✅ Interest deleted');
+
+    res.json({
+      success: true,
+      message: "Interest cancelled successfully"
+    });
+
+  } catch (error) {
+    console.error('Delete interest error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Error deleting interest",
+      error: error.message 
+    });
+  }
+};
+
 // ========== NOTIFICATIONS ==========
 
 // GET ALL NOTIFICATIONS
@@ -206,27 +261,29 @@ export const getNotifications = async (req, res) => {
 
     // Format notifications with profile info
     const notifications = await Promise.all(
-      interests.map(async (interest) => {
-        const fromProfile = await Profile.findOne({ user: interest.from._id });
+      interests
+        .filter(interest => interest.from) // ⭐ Filter out interests where sender was deleted
+        .map(async (interest) => {
+          const fromProfile = await Profile.findOne({ user: interest.from._id });
 
-        return {
-          _id: interest._id,
-          type: 'interest',
-          status: interest.status,
-          from: {
-            _id: interest.from._id,
-            name: fromProfile?.fullName || interest.from.name || 'Unknown',
-            email: interest.from.email,
-            image: getImageUrl(fromProfile?.image),
-            age: fromProfile?.age,
-            city: fromProfile?.city,
-            profession: fromProfile?.profession
-          },
-          message: `${fromProfile?.fullName || interest.from.name} sent you an interest`,
-          createdAt: interest.createdAt,
-          read: interest.status !== 'pending' // Mark as read if already accepted/rejected
-        };
-      })
+          return {
+            _id: interest._id,
+            type: 'interest',
+            status: interest.status,
+            from: {
+              _id: interest.from._id,
+              name: fromProfile?.fullName || interest.from.name || 'Unknown',
+              email: interest.from.email,
+              image: getImageUrl(fromProfile?.image, fromProfile?.gender),
+              age: fromProfile?.age,
+              city: fromProfile?.city,
+              profession: fromProfile?.profession
+            },
+            message: `${fromProfile?.fullName || interest.from.name} sent you an interest`,
+            createdAt: interest.createdAt,
+            read: interest.status !== 'pending' // Mark as read if already accepted/rejected
+          };
+        })
     );
 
     // Count unread (pending) notifications
@@ -284,26 +341,30 @@ export const getSentInterests = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    console.log('Found sent interests:', interests.length);
+
     // Format with profile info
     const formatted = await Promise.all(
-      interests.map(async (interest) => {
-        const toProfile = await Profile.findOne({ user: interest.to._id });
+      interests
+        .filter(interest => interest.to) // ⭐ Filter out interests where user was deleted
+        .map(async (interest) => {
+          const toProfile = await Profile.findOne({ user: interest.to._id });
 
-        return {
-          _id: interest._id,
-          status: interest.status,
-          to: {
-            _id: interest.to._id,
-            name: toProfile?.fullName || interest.to.name || 'Unknown',
-            email: interest.to.email,
-            image: getImageUrl(toProfile?.image),
-            age: toProfile?.age,
-            city: toProfile?.city,
-            profession: toProfile?.profession
-          },
-          createdAt: interest.createdAt
-        };
-      })
+          return {
+            _id: interest._id,
+            status: interest.status,
+            to: {
+              _id: interest.to._id,
+              name: toProfile?.fullName || interest.to.name || 'Unknown',
+              email: interest.to.email,
+              image: getImageUrl(toProfile?.image, toProfile?.gender),
+              age: toProfile?.age,
+              city: toProfile?.city,
+              profession: toProfile?.profession
+            },
+            createdAt: interest.createdAt
+          };
+        })
     );
 
     res.json({
