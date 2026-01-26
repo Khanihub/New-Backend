@@ -165,6 +165,39 @@ export const removeInterestFromMatch = async (req, res) => {
   }
 };
 
+export const deleteMatch = async (req, res) => {
+  try {
+    const { matchId } = req.params;
+
+    const match = await Match.findById(matchId);
+    if (!match) {
+      return res.status(404).json({
+        success: false,
+        message: 'Match not found'
+      });
+    }
+
+    // Optional: remove messages if you use chat
+    // await Message.deleteMany({ match: matchId });
+
+    await Match.findByIdAndDelete(matchId);
+
+    res.json({
+      success: true,
+      message: 'Match deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete match error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete match',
+      error: error.message
+    });
+  }
+};
+
+
 // Get browse matches
 export const getBrowseMatches = async (req, res) => {
   try {
@@ -467,3 +500,4 @@ export const unfriend = async (req, res) => {
     });
   }
 };
+export const getFriends = getMyMatches;
