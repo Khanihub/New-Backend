@@ -11,12 +11,14 @@ router.get("/create-admin", async (req, res) => {
     if (existing) return res.json({ message: "Admin already exists" });
 
     const password = "Admin@123";
-    const hash = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+
+
 
     const admin = await User.create({
       name: "Super Admin",
-      email: "admin@marriage.com",
-      password: hash,
+      email: "admin6@marriage.com",
+      password: hashedPassword,
       role: "admin"
     });
 
