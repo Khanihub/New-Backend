@@ -34,6 +34,19 @@ const io = new Server(server, {
   }
 });
 
+
+app.use(cors({
+  origin: [
+    'https://trae-dating-project.vercel.app', 
+    'http://localhost:5173',
+    'http://localhost:5174'
+  ],
+  credentials: true
+}));
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // Request logging middleware
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -50,18 +63,6 @@ app.use((req, res, next) => {
   
   next();
 });
-
-app.use(cors({
-  origin: [
-    'https://trae-dating-project.vercel.app', 
-    'http://localhost:5173',
-    'http://localhost:5174'
-  ],
-  credentials: true
-}));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // ⭐⭐⭐ CRITICAL: Serve static files - BOTH uploads AND assets ⭐⭐⭐
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

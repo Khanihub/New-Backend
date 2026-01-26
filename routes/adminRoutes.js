@@ -13,7 +13,7 @@ router.get("/create-admin", async (req, res) => {
     }
 
     // ✅ Fixed: Use 'password' instead of 'plainPassword'
-    const password = "Admin@123";
+    const password = "admin@123"; // lowercase to match your frontend
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const admin = await User.create({
