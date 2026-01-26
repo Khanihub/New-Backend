@@ -12,6 +12,7 @@ import matchRoutes from "./routes/matchRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import interestRoutes from "./routes/intrestRoutes.js";
 import settingsRoutes from "./routes/settingRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js"
 
 // ⭐ Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -86,7 +87,7 @@ app.use("/api/interests", interestRoutes);
 app.use("/api/matches", matchRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/settings", settingsRoutes);
-
+app.use("/api/admin", adminRoutes);
 // ====== SOCKET.IO CONNECTION HANDLING ======
 io.on("connection", (socket) => {
   console.log("✅ New client connected:", socket.id);
